@@ -6,6 +6,10 @@ This repository provides a lightweight Docker image for **DIA-NN**, a universal 
 
 [DIA-NN](https://github.com/vdemichev/DiaNN) is an advanced software solution for DIA proteomics data analysis. This container simplifies the installation and execution of DIA-NN by providing a pre-configured environment, ensuring compatibility and ease of use.
 
+## **DIANN License**
+
+quantms by default uses diann 1.8.1 which license allows quantms to distribute the docker and singularity images. The [current version of diann is 1.9.2 which license](DIANN1.9.2-LICENSE.txt) does not allow quantms or any other platform to distribute the docker and singularity images. Please before using this image, check the license of the diann version you are using and make sure you are compliant with the license.
+
 ## **Image Details**
 
 - **Base Image**: `debian:12.8-slim`
