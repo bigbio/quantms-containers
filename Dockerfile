@@ -1,4 +1,4 @@
-FROM ubuntu:22.04
+FROM debian:12.8-slim AS builder
 
 LABEL base_image="ubuntu:22.04"
 LABEL version="2"
@@ -8,13 +8,12 @@ LABEL about.summary="DIA-NN - a universal software for data-independent acquisit
 LABEL about.home="https://github.com/vdemichev/DiaNN"
 LABEL about.documentation="https://github.com/vdemichev/DiaNN"
 LABEL about.license_file="https://github.com/vdemichev/DiaNN/LICENSE.txt"
-LABEL about.license="SPDX:CC-BY-NC-4.0"
 LABEL about.tags="Proteomics"
 LABEL maintainer="Yasset Perez-Riverol <ypriverol@gmail.com>"
 
-ENV DEBIAN_FRONTEND noninteractive
+ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update -y && apt-get install -y \
+RUN apt-get update -y --no-install-recommends && apt-get install -y \
     g++ build-essential cmake zlib1g-dev libbz2-dev libboost-all-dev wget locales unzip && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
