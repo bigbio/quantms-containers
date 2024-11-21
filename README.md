@@ -12,7 +12,7 @@ quantms by default uses diann 1.8.1 which license allows quantms to distribute t
 
 ## **Image Details**
 
-- **Base Image**: `debian:12.8-slim`
+- **Base Image**: `ubuntu:22.04`
 - **DIA-NN Version**: `1.9.2`
 - **Maintainer**: Yasset Perez-Riverol ([ypriverol@gmail.com](mailto:ypriverol@gmail.com))
 
@@ -39,5 +39,5 @@ docker build -t diann:1.9.2 .
 ### **Running the Container**
 
 ```bash
-docker run -it diann:1.9.2 ./diann-1.9.2/diann-linux
+docker run -it diann:1.9.2 diann --help
 ```
