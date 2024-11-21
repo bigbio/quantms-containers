@@ -39,5 +39,5 @@ docker build -t diann:1.9.2 .
 ### **Running the Container**
 
 ```bash
-docker run -it diann:1.9.2 diann
+docker run -it diann:1.9.2 ./diann-1.9.2/diann-linux
 ```
