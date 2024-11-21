@@ -14,7 +14,9 @@ quantms by default uses diann 1.8.1 which license allows quantms to distribute t
 
 - **Base Image**: `ubuntu:22.04`
 - **DIA-NN Version**: `1.9.2`
-- **Maintainer**: Yasset Perez-Riverol ([ypriverol@gmail.com](mailto:ypriverol@gmail.com))
+- **Maintainer**: 
+  - Yasset Perez-Riverol ([ypriverol@gmail.com](mailto:ypriverol@gmail.com))
+  - Ryan Smith ([ryan.smith@imperial.ac.uk](ryan.smith@imperial.ac.uk))
 
 ## **Features**
 
