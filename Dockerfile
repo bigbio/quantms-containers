@@ -1,5 +1,6 @@
-FROM debian:12.8-slim AS builder
+FROM ubuntu:22.04
 
+# Some metadata
 LABEL base_image="ubuntu:22.04"
 LABEL version="2"
 LABEL software="diann"
@@ -11,25 +12,32 @@ LABEL about.license_file="https://github.com/vdemichev/DiaNN/LICENSE.txt"
 LABEL about.tags="Proteomics"
 LABEL maintainer="Yasset Perez-Riverol <ypriverol@gmail.com>"
 
+USER root
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update -y --no-install-recommends && apt-get install -y \
-    g++ build-essential cmake zlib1g-dev libbz2-dev libboost-all-dev wget locales unzip && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+# Update package lists and ensure package versions are up to date
+RUN apt-get update && apt-get upgrade -y
 
-RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && \
-    locale-gen && update-locale LANG=en_US.UTF-8
+# Install necessary packages including locales
+RUN apt-get install wget unzip libgomp1 locales -y
 
-RUN mkdir -p /opt/software && \
-    wget https://github.com/vdemichev/DiaNN/releases/download/1.9.2/diann-1.9.2.Linux_update_2024-10-31.zip -O /opt/software/diann-1.9.2.Linux_update_2024-10-31.zip && \
-    unzip /opt/software/diann-1.9.2.Linux_update_2024-10-31.zip -d /opt/software && \
-    mv /opt/software/diann-1.9.2 /usr/diann-1.9.2 && \
-    ln -s /usr/diann-1.9.2/diann-linux /usr/diann-1.9.2/diann && \
-    rm -rf /opt/software
+# Configure locale to avoid runtime errors
+RUN locale-gen en_US.UTF-8 && \
+    update-locale LANG=en_US.UTF-8
 
-RUN chmod +x /usr/diann-1.9.2/diann-linux
+# Set environment variables for locale
+ENV LANG=en_US.UTF-8
+ENV LANGUAGE=en_US:en
+ENV LC_ALL=en_US.UTF-8
 
-ENV PATH="$PATH:/usr/diann-1.9.2"
-ENV DIA_NN_PATH="/usr/diann-1.9.2"
+# Download DIA-NN version <version>
+RUN wget https://github.com/vdemichev/DiaNN/releases/download/1.9.2/diann-1.9.2.Linux.zip -O diann-1.9.2.Linux.zip
 
-WORKDIR /data/
+# Unzip the DIA-NN package
+RUN unzip diann-1.9.2.Linux.zip
+
+# Set appropriate permissions for the DIA-NN folder
+RUN chmod -R 775 /diann-1.9.2
+
+# NOTE: It is entirely the user's responsibility to ensure compliance with DIA-NN license terms.
+# Please review the licensing terms for DIA-NN before using or distributing this Docker image.
