@@ -15,8 +15,12 @@ LABEL maintainer="Yasset Perez-Riverol <ypriverol@gmail.com>"
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Update package lists and ensure package versions are up to date, Install necessary packages
-RUN apt-get update && apt-get upgrade -y && \
-    apt-get install wget unzip libgomp1 locales -y
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    wget \
+    unzip \
+    libgomp1 \
+    locales && \
+    rm -rf /var/lib/apt/lists/*
 
 # Configure locale to avoid runtime errors
 RUN locale-gen en_US.UTF-8 && \
@@ -28,7 +32,7 @@ ENV LANGUAGE=en_US:en
 ENV LC_ALL=en_US.UTF-8
 
 # Download and install DIA-NN
-RUN wget https://github.com/vdemichev/DiaNN/releases/download/1.9.2/diann-1.9.2.Linux.zip -O /tmp/diann-1.9.2.Linux.zip && \
+RUN wget --no-check-certificate https://github.com/vdemichev/DiaNN/releases/download/1.9.2/diann-1.9.2.Linux.zip -O /tmp/diann-1.9.2.Linux.zip && \
     unzip /tmp/diann-1.9.2.Linux.zip -d /usr/ && \
     rm /tmp/diann-1.9.2.Linux.zip
 
