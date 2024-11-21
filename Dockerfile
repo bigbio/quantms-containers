@@ -41,7 +41,6 @@ RUN apt-get remove -y wget unzip && apt-get autoremove -y && apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
 # Set appropriate permissions for the DIA-NN folder
-RUN chmod -R 775 /usr/diann-1.9.2
 RUN chmod +x /usr/diann-1.9.2/diann-linux
 
 # Create a symbolic link and add to PATH
