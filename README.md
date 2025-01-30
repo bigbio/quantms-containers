@@ -8,7 +8,7 @@ This repository provides a lightweight Docker image for **DIA-NN**, a universal 
 
 ## **DIANN License**
 
-quantms by default uses diann 1.8.1 which license allows quantms to distribute the docker and singularity images. The [current version of diann is 1.9.2 which license](DIANN1.9.2-LICENSE.txt) does not allow quantms or any other platform to distribute the docker and singularity images. Please before using this image, check the license of the diann version you are using and make sure you are compliant with the license.
+quantms by default uses diann 1.8.1 which license allows quantms to distribute the docker and singularity images. The [current version of diann is 1.9.2 which license](diann-1.9.2/DIANN1.9.2-LICENSE.txt) does not allow quantms or any other platform to distribute the docker and singularity images. Please before using this image, check the license of the diann version you are using and make sure you are compliant with the license.
 
 ## **Image Details**
 

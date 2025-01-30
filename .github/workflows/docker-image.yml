@@ -14,5 +14,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    - name: Build the Docker image
-      run: docker build . --file Dockerfile --tag diann:1.9.2
+    - name: Build 1.9.2 Docker image
+      run: cd diann-1.9.2/; docker build . --file Dockerfile --tag diann:1.9.2
+    - name: Build 2.0 Docker image
+      run: cd diann-2.0/; docker build . --file Dockerfile --tag diann:2.0
