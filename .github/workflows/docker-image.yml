@@ -1,20 +1,43 @@
-name: Docker Image CI
+name: Build DiaNN Docker Images
 
 on:
   push:
     branches: [ "main" ]
+    paths:
+      - 'diann-*/Dockerfile'
+      - '.github/workflows/**'
   pull_request:
     branches: [ "main" ]
+    paths:
+      - 'diann-*/Dockerfile'
+      - '.github/workflows/**'
 
 jobs:
-
   build:
-
+    name: Build Docker Images
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
-    - name: Build 1.9.2 Docker image
-      run: cd diann-1.9.2/; docker build . --file Dockerfile --tag diann:1.9.2
-    - name: Build 2.0 Docker image
-      run: cd diann-2.0/; docker build . --file Dockerfile --tag diann:2.0
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build DiaNN 1.9.2 image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./diann-1.9.2
+        push: false
+        tags: diann:1.9.2
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Build DiaNN 2.0 image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./diann-2.0
+        push: false
+        tags: diann:2.0
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
