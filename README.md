@@ -29,6 +29,7 @@ Before using this container, ensure compliance with the version-specific license
 - Available Versions: 
   - DIA-NN 1.9.2
   - DIA-NN 2.0
+  - DIA-NN 2.0.2
 - Architecture Support: `amd64`/`x86_64`
 
 ### Included Dependencies
