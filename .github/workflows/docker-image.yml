@@ -76,15 +76,6 @@ jobs:
       with:
         singularity-version: 3.8.7
 
-    - name: Configure Singularity for GitHub Container Registry
-      if: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
-      run: |
-        # Create Singularity remote endpoint for GitHub Container Registry
-        singularity remote add --no-login GithubContainer oras://ghcr.io
-        
-        # Login to GitHub Container Registry
-        echo "${{ secrets.GHCR_TOKEN }}" | singularity remote login -u ${{ github.actor }} --password-stdin GithubContainer
-
     - name: Pull Docker image for Singularity conversion
       if: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
       run: |
@@ -101,17 +92,16 @@ jobs:
         # Verify the SIF file exists
         ls -la diann-2.1.0.sif
 
-    - name: Push DiaNN 2.1.0 Singularity container
-      if: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
-      uses: nick-fields/retry@v2
-      with:
-        timeout_minutes: 15
-        max_attempts: 3
-        retry_wait_seconds: 60
-        command: |
-          # Push to GitHub Container Registry using the configured remote
-          singularity push diann-2.1.0.sif oras://GithubContainer/bigbio/diann-sif:2.1.0
-          singularity push diann-2.1.0.sif oras://GithubContainer/bigbio/diann-sif:latest
+    - name: Login and Deploy Container
+      if: (github.event_name != 'pull_request')
+      env:
+        keepgoing: ${{ env.keepgoing }}
+      run: |
+        if [[ "${keepgoing}" == "true" ]]; then
+          echo ${{ secrets.GHCR_TOKEN }} | singularity remote login -u ${{ secrets.GHCR_USERNAME }} --password-stdin oras://ghcr.io
+          singularity push diann-2.1.0.sif oras://bigbio/diann-sif:2.1.0
+          singularity push diann-2.1.0.sif oras://bigbio/diann-sif:latest
+        fi
 
     - name: Notify on success
       if: success()
