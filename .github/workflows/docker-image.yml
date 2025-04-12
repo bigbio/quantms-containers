@@ -76,6 +76,15 @@ jobs:
       with:
         singularity-version: 3.8.7
 
+    - name: Configure Singularity for GitHub Container Registry
+      if: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
+      run: |
+        # Create Singularity remote endpoint for GitHub Container Registry
+        singularity remote add --no-login GithubContainer oras://ghcr.io
+        
+        # Login to GitHub Container Registry
+        echo "${{ secrets.GHCR_TOKEN }}" | singularity remote login -u ${{ github.actor }} --password-stdin GithubContainer
+
     - name: Pull Docker image for Singularity conversion
       if: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
       run: |
@@ -100,10 +109,9 @@ jobs:
         max_attempts: 3
         retry_wait_seconds: 60
         command: |
-          # Push to GitHub Container Registry
-          singularity push diann-2.1.0.sif oras://ghcr.io/bigbio/diann-sif:2.1.0
-          singularity push diann-2.1.0.sif oras://ghcr.io/bigbio/diann-sif:2.1.0-${{ steps.date.outputs.DATE_TAG }}
-          singularity push diann-2.1.0.sif oras://ghcr.io/bigbio/diann-sif:latest
+          # Push to GitHub Container Registry using the configured remote
+          singularity push diann-2.1.0.sif oras://GithubContainer/bigbio/diann-sif:2.1.0
+          singularity push diann-2.1.0.sif oras://GithubContainer/bigbio/diann-sif:latest
 
     - name: Notify on success
       if: success()

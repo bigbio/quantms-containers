@@ -77,6 +77,15 @@ jobs:
         uses: eWaterCycle/setup-singularity@v7
         with:
           singularity-version: 3.8.7
+          
+      - name: Configure Singularity for GitHub Container Registry
+        if: success()
+        run: |
+          # Create Singularity remote endpoint for GitHub Container Registry
+          singularity remote add --no-login GithubContainer oras://ghcr.io
+          
+          # Login to GitHub Container Registry
+          echo "${{ secrets.GHCR_TOKEN }}" | singularity remote login -u ${{ github.actor }} --password-stdin GithubContainer
 
       - name: Pull OpenMS SIF container
         id: pull_sif
@@ -95,15 +104,17 @@ jobs:
           TARGET_SIF="oras://ghcr.io/bigbio/openms-tools-thirdparty-sif:${{ steps.date.outputs.DATE_TAG }}"
           
           echo "Pushing to $TARGET_SIF"
-          singularity push openms-tools-thirdparty.sif $TARGET_SIF || {
-            echo "Failed to push $TARGET_SIF, retrying..."
+          # Convert the oras:// URL to use the GithubContainer remote
+          TARGET_REMOTE_SIF=$(echo $TARGET_SIF | sed 's|oras://ghcr.io|oras://GithubContainer|')
+          singularity push openms-tools-thirdparty.sif $TARGET_REMOTE_SIF || {
+            echo "Failed to push $TARGET_REMOTE_SIF, retrying..."
             sleep 60
-            singularity push openms-tools-thirdparty.sif $TARGET_SIF
+            singularity push openms-tools-thirdparty.sif $TARGET_REMOTE_SIF
           }
           
           # If this is a release push, also tag as latest
           if [[ "${{ github.event.inputs.push_release }}" == "true" ]]; then
-            LATEST_SIF="oras://ghcr.io/bigbio/openms-tools-thirdparty-sif:latest"
+            LATEST_SIF="oras://GithubContainer/bigbio/openms-tools-thirdparty-sif:latest"
             singularity push openms-tools-thirdparty.sif $LATEST_SIF || {
               echo "Failed to push $LATEST_SIF, retrying..."
               sleep 60
