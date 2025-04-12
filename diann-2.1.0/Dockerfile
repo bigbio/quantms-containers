@@ -33,8 +33,8 @@ ENV LC_ALL=en_US.UTF-8
 
 # Download and install DIA-NN
 RUN wget --no-check-certificate https://github.com/vdemichev/DiaNN/releases/download/2.0/DIA-NN-2.1.0-Academia-Linux.zip && \
-    unzip /tmp/DIA-NN-2.1.0-Academia-Linux.zip -d /usr/ && \
-    rm /tmp/DIA-NN-2.1.0-Academia-Linux.zip
+    unzip DIA-NN-2.1.0-Academia-Linux.zip -d /usr/ && \
+    rm DIA-NN-2.1.0-Academia-Linux.zip
 
 # Remove unnecessary packages
 RUN apt-get remove -y wget unzip && apt-get autoremove -y && apt-get clean && \
