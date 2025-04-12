@@ -70,14 +70,29 @@ jobs:
         cache-to: type=gha,mode=max
         provenance: false
 
-
     - name: Set up Singularity
       if: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
       uses: eWaterCycle/setup-singularity@v7
       with:
         singularity-version: 3.8.7
 
-    - name: Convert and Push DiaNN 2.1.0 Singularity container (Latest)
+    - name: Pull Docker image for Singularity conversion
+      if: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
+      run: |
+        # Pull the Docker image from GitHub Container Registry
+        docker pull ghcr.io/bigbio/diann:2.1.0
+        # Save the Docker image to a tar file
+        docker save ghcr.io/bigbio/diann:2.1.0 -o diann-2.1.0.tar
+
+    - name: Convert Docker image to Singularity
+      if: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
+      run: |
+        # Convert Docker tar to Singularity SIF
+        singularity build diann-2.1.0.sif docker-archive://diann-2.1.0.tar
+        # Verify the SIF file exists
+        ls -la diann-2.1.0.sif
+
+    - name: Push DiaNN 2.1.0 Singularity container
       if: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
       uses: nick-fields/retry@v2
       with:
@@ -85,9 +100,6 @@ jobs:
         max_attempts: 3
         retry_wait_seconds: 60
         command: |
-          # Convert Docker image to Singularity SIF
-          singularity build diann-2.1.0.sif docker-daemon://ghcr.io/bigbio/diann:2.1.0
-          
           # Push to GitHub Container Registry
           singularity push diann-2.1.0.sif oras://ghcr.io/bigbio/diann-sif:2.1.0
           singularity push diann-2.1.0.sif oras://ghcr.io/bigbio/diann-sif:2.1.0-${{ steps.date.outputs.DATE_TAG }}
