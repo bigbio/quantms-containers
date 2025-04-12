@@ -116,17 +116,21 @@ When processing data, mount your local directories using Docker volumes:
 docker run -v /local/path:/container/path -it ghcr.io/bigbio/diann:latest diann [commands]
 ```
 
-## CI/CD Workflows
+## CI/CD Workflow
 
-This repository includes two GitHub Actions workflows:
+This repository includes a GitHub Actions workflow that builds and syncs all containers:
 
-1. **DIA-NN Docker Images**: Builds and pushes DIA-NN Docker and Singularity containers
-   - Triggered by: pushes to main, pull requests, releases, and manual dispatch
-   - Latest tag is applied on release events
+**QuantMS Containers Build and Sync**: A combined workflow that:
+1. First builds and pushes DIA-NN Docker and Singularity containers
+2. Then syncs OpenMS containers from the official repository to BigBio
 
-2. **OpenMS Containers Sync**: Syncs OpenMS containers from the official repository to BigBio
-   - Triggered by: pushes to main, releases, and manual dispatch
-   - Latest tag is applied on release events or when manually specified
+The workflow is triggered by:
+- Pushes to the main branch
+- Pull requests (for DiaNN builds only)
+- Release events (which also tag images as "latest")
+- Manual dispatch with configurable options
+
+This sequential approach ensures that all containers are built and pushed in a coordinated manner.
 
 ## Performance Tips
 
