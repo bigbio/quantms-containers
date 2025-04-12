@@ -104,14 +104,11 @@ jobs:
         echo ${{ secrets.GHCR_TOKEN }} | singularity remote login -u ${{ secrets.GHCR_USERNAME }} --password-stdin oras://ghcr.io
         
         # Push with version tag
-        singularity push diann-2.1.0.sif oras://bigbio/diann-sif:2.1.0
-        
-        # Push with date tag
-        singularity push diann-2.1.0.sif oras://bigbio/diann-sif:2.1.0-${{ steps.date.outputs.DATE_TAG }}
+        singularity push diann-2.1.0.sif oras://ghcr.io/bigbio/diann-sif:2.1.0
         
         # If this is a release event, also tag as latest
         if [[ "${{ env.IS_RELEASE }}" == "true" || "${{ github.event_name }}" == "release" ]]; then
-          singularity push diann-2.1.0.sif oras://bigbio/diann-sif:latest
+          singularity push diann-2.1.0.sif oras://ghcr.io/bigbio/diann-sif:latest
         fi
 
     - name: Notify on success
@@ -193,7 +190,7 @@ jobs:
         uses: eWaterCycle/setup-singularity@v7
         with:
           singularity-version: 3.8.7
-          
+
       - name: Configure Singularity for GitHub Container Registry
         if: success()
         run: |
@@ -226,16 +223,16 @@ jobs:
           singularity push openms-tools-thirdparty.sif oras://bigbio/openms-tools-thirdparty-sif:${{ steps.date.outputs.DATE_TAG }} || {
             echo "Failed to push with date tag, retrying..."
             sleep 60
-            singularity push openms-tools-thirdparty.sif oras://bigbio/openms-tools-thirdparty-sif:${{ steps.date.outputs.DATE_TAG }}
+            singularity push openms-tools-thirdparty.sif oras://ghcr.io/bigbio/openms-tools-thirdparty-sif:${{ steps.date.outputs.DATE_TAG }}
           }
           
           # If this is a release push or a GitHub release event, also tag as latest
           if [[ "${{ github.event.inputs.push_release }}" == "true" || "${{ github.event_name }}" == "release" ]]; then
             echo "Pushing OpenMS SIF as latest"
-            singularity push openms-tools-thirdparty.sif oras://bigbio/openms-tools-thirdparty-sif:latest || {
+            singularity push openms-tools-thirdparty.sif oras://ghcr.io/bigbio/openms-tools-thirdparty-sif:latest || {
               echo "Failed to push as latest, retrying..."
               sleep 60
-              singularity push openms-tools-thirdparty.sif oras://bigbio/openms-tools-thirdparty-sif:latest
+              singularity push openms-tools-thirdparty.sif oras://ghcr.io/bigbio/openms-tools-thirdparty-sif:latest
             }
           fi
 
