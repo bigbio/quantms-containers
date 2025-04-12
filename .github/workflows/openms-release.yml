@@ -1,6 +1,10 @@
 name: Sync OpenMS Containers
 
 on:
+  push:
+    branches: [ "main" ]
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
       push_release:
@@ -60,8 +64,8 @@ jobs:
             docker push $TARGET_CONTAINER
           }
           
-          # If this is a release push, also tag as latest
-          if [[ "${{ github.event.inputs.push_release }}" == "true" ]]; then
+          # If this is a release push or a GitHub release event, also tag as latest
+          if [[ "${{ github.event.inputs.push_release }}" == "true" || "${{ github.event_name }}" == "release" ]]; then
             LATEST_IMAGE="ghcr.io/bigbio/openms-tools-thirdparty:latest"
             docker tag $SOURCE_CONTAINER $LATEST_IMAGE
             docker push $LATEST_IMAGE || {
@@ -78,15 +82,6 @@ jobs:
         with:
           singularity-version: 3.8.7
           
-      - name: Configure Singularity for GitHub Container Registry
-        if: success()
-        run: |
-          # Create Singularity remote endpoint for GitHub Container Registry
-          singularity remote add --no-login GithubContainer oras://ghcr.io
-          
-          # Login to GitHub Container Registry
-          echo "${{ secrets.GHCR_TOKEN }}" | singularity remote login -u ${{ github.actor }} --password-stdin GithubContainer
-
       - name: Pull OpenMS SIF container
         id: pull_sif
         if: success()
@@ -97,28 +92,29 @@ jobs:
           retry_wait_seconds: 60
           command: singularity pull --force openms-tools-thirdparty.sif oras://ghcr.io/openms/openms-tools-thirdparty-sif:latest
 
-      - name: Push OpenMS SIF container
+      - name: Login and Push OpenMS SIF container
         if: steps.pull_sif.outcome == 'success'
+        env:
+          keepgoing: true
         run: |
-          # Set SIF paths
-          TARGET_SIF="oras://ghcr.io/bigbio/openms-tools-thirdparty-sif:${{ steps.date.outputs.DATE_TAG }}"
+          # Login to GitHub Container Registry
+          echo ${{ secrets.GHCR_TOKEN }} | singularity remote login -u ${{ secrets.GHCR_USERNAME }} --password-stdin oras://ghcr.io
           
-          echo "Pushing to $TARGET_SIF"
-          # Convert the oras:// URL to use the GithubContainer remote
-          TARGET_REMOTE_SIF=$(echo $TARGET_SIF | sed 's|oras://ghcr.io|oras://GithubContainer|')
-          singularity push openms-tools-thirdparty.sif $TARGET_REMOTE_SIF || {
-            echo "Failed to push $TARGET_REMOTE_SIF, retrying..."
+          # Set SIF paths and push with date tag
+          echo "Pushing OpenMS SIF with date tag"
+          singularity push openms-tools-thirdparty.sif oras://bigbio/openms-tools-thirdparty-sif:${{ steps.date.outputs.DATE_TAG }} || {
+            echo "Failed to push with date tag, retrying..."
             sleep 60
-            singularity push openms-tools-thirdparty.sif $TARGET_REMOTE_SIF
+            singularity push openms-tools-thirdparty.sif oras://bigbio/openms-tools-thirdparty-sif:${{ steps.date.outputs.DATE_TAG }}
           }
           
-          # If this is a release push, also tag as latest
-          if [[ "${{ github.event.inputs.push_release }}" == "true" ]]; then
-            LATEST_SIF="oras://GithubContainer/bigbio/openms-tools-thirdparty-sif:latest"
-            singularity push openms-tools-thirdparty.sif $LATEST_SIF || {
-              echo "Failed to push $LATEST_SIF, retrying..."
+          # If this is a release push or a GitHub release event, also tag as latest
+          if [[ "${{ github.event.inputs.push_release }}" == "true" || "${{ github.event_name }}" == "release" ]]; then
+            echo "Pushing OpenMS SIF as latest"
+            singularity push openms-tools-thirdparty.sif oras://bigbio/openms-tools-thirdparty-sif:latest || {
+              echo "Failed to push as latest, retrying..."
               sleep 60
-              singularity push openms-tools-thirdparty.sif $LATEST_SIF
+              singularity push openms-tools-thirdparty.sif oras://bigbio/openms-tools-thirdparty-sif:latest
             }
             echo "Pushed release version as $LATEST_SIF"
           fi

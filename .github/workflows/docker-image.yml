@@ -3,14 +3,13 @@ name: Build and Push DiaNN Docker Images
 on:
   push:
     branches: [ "main" ]
-    paths:
-      - 'diann-*/Dockerfile'
-      - '.github/workflows/**'
   pull_request:
     branches: [ "main" ]
     paths:
       - 'diann-*/Dockerfile'
       - '.github/workflows/**'
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
       push_images:
@@ -95,11 +94,18 @@ jobs:
     - name: Login and Deploy Container
       if: (github.event_name != 'pull_request')
       env:
-        keepgoing: ${{ env.keepgoing }}
+        IS_RELEASE: ${{ github.event_name == 'release' }}
       run: |
-        if [[ "${keepgoing}" == "true" ]]; then
-          echo ${{ secrets.GHCR_TOKEN }} | singularity remote login -u ${{ secrets.GHCR_USERNAME }} --password-stdin oras://ghcr.io
-          singularity push diann-2.1.0.sif oras://bigbio/diann-sif:2.1.0
+        echo ${{ secrets.GHCR_TOKEN }} | singularity remote login -u ${{ secrets.GHCR_USERNAME }} --password-stdin oras://ghcr.io
+        
+        # Push with version tag
+        singularity push diann-2.1.0.sif oras://bigbio/diann-sif:2.1.0
+        
+        # Push with date tag
+        singularity push diann-2.1.0.sif oras://bigbio/diann-sif:2.1.0-${{ steps.date.outputs.DATE_TAG }}
+        
+        # If this is a release event, also tag as latest
+        if [[ "${{ env.IS_RELEASE }}" == "true" || "${{ github.event_name }}" == "release" ]]; then
           singularity push diann-2.1.0.sif oras://bigbio/diann-sif:latest
         fi
 
