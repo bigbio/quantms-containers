@@ -4,7 +4,7 @@ FROM ubuntu:22.04
 LABEL base_image="ubuntu:22.04"
 LABEL version="2"
 LABEL software="diann"
-LABEL software.version="2.0"
+LABEL software.version="2.1.0"
 LABEL about.summary="DIA-NN - a universal software for data-independent acquisition (DIA) proteomics data processing."
 LABEL about.home="https://github.com/vdemichev/DiaNN"
 LABEL about.documentation="https://github.com/vdemichev/DiaNN"
@@ -32,20 +32,20 @@ ENV LANGUAGE=en_US:en
 ENV LC_ALL=en_US.UTF-8
 
 # Download and install DIA-NN
-RUN wget --no-check-certificate https://github.com/vdemichev/DiaNN/releases/download/2.0/DIA-NN-2.0.2-Academia-Linux.zip -O /tmp/DIA-NN-2.0.2-Academia-Linux.zip && \
-    unzip /tmp/DIA-NN-2.0.2-Academia-Linux.zip -d /usr/ && \
-    rm /tmp/DIA-NN-2.0.2-Academia-Linux.zip
+RUN wget --no-check-certificate https://github.com/vdemichev/DiaNN/releases/download/2.0/DIA-NN-2.1.0-Academia-Linux.zip && \
+    unzip /tmp/DIA-NN-2.1.0-Academia-Linux.zip -d /usr/ && \
+    rm /tmp/DIA-NN-2.1.0-Academia-Linux.zip
 
 # Remove unnecessary packages
 RUN apt-get remove -y wget unzip && apt-get autoremove -y && apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
 # Set appropriate permissions for the DIA-NN folder
-RUN chmod +x /usr/diann-2.0.2/diann-linux
+RUN chmod +x /usr/diann-2.1.0/diann-linux
 
 # Create a symbolic link and add to PATH
-RUN ln -s /usr/diann-2.0.2/diann-linux /usr/diann-2.0.2/diann
-ENV PATH="$PATH:/usr/diann-2.0.2"
+RUN ln -s /usr/diann-2.1.0/diann-linux /usr/diann-2.1.0/diann
+ENV PATH="$PATH:/usr/diann-2.1.0"
 
 WORKDIR /data/
 

@@ -1,0 +1,123 @@
+name: Sync OpenMS Containers
+
+on:
+  workflow_dispatch:
+    inputs:
+      push_release:
+        description: 'Push as release version'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  sync-containers:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Set date tag
+        id: date
+        run: echo "DATE_TAG=$(date +'%Y.%m.%d')" >> $GITHUB_OUTPUT
+      
+      - name: Pull OpenMS Docker container
+        id: pull_docker
+        uses: nick-fields/retry@v2
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: docker pull ghcr.io/openms/openms-tools-thirdparty:latest
+      
+      - name: Tag and push OpenMS Docker container
+        if: steps.pull_docker.outcome == 'success'
+        run: |
+          # Set container names
+          SOURCE_CONTAINER="ghcr.io/openms/openms-tools-thirdparty:latest"
+          TARGET_CONTAINER="ghcr.io/bigbio/openms-tools-thirdparty:${{ steps.date.outputs.DATE_TAG }}"
+          
+          echo "Tagging as $TARGET_CONTAINER"
+          docker tag $SOURCE_CONTAINER $TARGET_CONTAINER
+          
+          echo "Pushing $TARGET_CONTAINER"
+          docker push $TARGET_CONTAINER || {
+            echo "Failed to push $TARGET_CONTAINER, retrying..."
+            sleep 30
+            docker push $TARGET_CONTAINER
+          }
+          
+          # If this is a release push, also tag as latest
+          if [[ "${{ github.event.inputs.push_release }}" == "true" ]]; then
+            LATEST_IMAGE="ghcr.io/bigbio/openms-tools-thirdparty:latest"
+            docker tag $SOURCE_CONTAINER $LATEST_IMAGE
+            docker push $LATEST_IMAGE || {
+              echo "Failed to push $LATEST_IMAGE, retrying..."
+              sleep 30
+              docker push $LATEST_IMAGE
+            }
+            echo "Pushed release version as $LATEST_IMAGE"
+          fi
+      
+      - name: Set up Singularity
+        if: success()
+        uses: eWaterCycle/setup-singularity@v7
+        with:
+          singularity-version: 3.8.7
+      
+      - name: Pull OpenMS SIF container
+        id: pull_sif
+        if: success()
+        uses: nick-fields/retry@v2
+        with:
+          timeout_minutes: 15
+          max_attempts: 3
+          retry_wait_seconds: 60
+          command: singularity pull --force openms-tools-thirdparty.sif oras://ghcr.io/openms/openms-tools-thirdparty-sif:latest
+      
+      - name: Push OpenMS SIF container
+        if: steps.pull_sif.outcome == 'success'
+        run: |
+          # Set SIF paths
+          TARGET_SIF="oras://ghcr.io/bigbio/openms-tools-thirdparty-sif:${{ steps.date.outputs.DATE_TAG }}"
+          
+          echo "Pushing to $TARGET_SIF"
+          singularity push openms-tools-thirdparty.sif $TARGET_SIF || {
+            echo "Failed to push $TARGET_SIF, retrying..."
+            sleep 60
+            singularity push openms-tools-thirdparty.sif $TARGET_SIF
+          }
+          
+          # If this is a release push, also tag as latest
+          if [[ "${{ github.event.inputs.push_release }}" == "true" ]]; then
+            LATEST_SIF="oras://ghcr.io/bigbio/openms-tools-thirdparty-sif:latest"
+            singularity push openms-tools-thirdparty.sif $LATEST_SIF || {
+              echo "Failed to push $LATEST_SIF, retrying..."
+              sleep 60
+              singularity push openms-tools-thirdparty.sif $LATEST_SIF
+            }
+            echo "Pushed release version as $LATEST_SIF"
+          fi
+      
+      - name: Notify on success
+        if: success()
+        run: |
+          echo "::notice::Successfully synced OpenMS containers to BigBio repositories"
+          
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "::error::Failed to sync OpenMS containers. Check the logs for details."
