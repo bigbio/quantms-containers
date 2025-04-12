@@ -1,96 +1,138 @@
-# DIA-NN Docker Container
+# QuantMS Docker Containers
 
-A production-ready Docker container for **DIA-NN**, a cutting-edge software tool for data-independent acquisition (DIA) proteomics data processing.
+A repository of production-ready Docker and Singularity containers for proteomics tools, including **DIA-NN** and **OpenMS**.
 
 ## Overview
 
-[DIA-NN](https://github.com/vdemichev/DiaNN) is a powerful software solution for analyzing DIA proteomics data. This containerized version offers:
+This repository provides containerized versions of popular proteomics tools:
+
+- [DIA-NN](https://github.com/vdemichev/DiaNN): A powerful software solution for analyzing DIA proteomics data
+- [OpenMS](https://www.openms.de/): A versatile open-source software for mass spectrometry data analysis
+
+These containerized versions offer:
 
 - Simplified installation and deployment
 - Consistent runtime environment across platforms
 - Pre-configured dependencies and optimizations
-- Support for both DIA-NN 1.9.2 and 2.0
+- Automatic builds and releases via GitHub Actions
+- Both Docker and Singularity container formats
+
+## Container Availability
+
+### DIA-NN Containers
+
+| Container Type | Version | URL |
+|----------------|---------|-----|
+| Docker | 2.1.0 | `ghcr.io/bigbio/diann:2.1.0` |
+| Docker | latest | `ghcr.io/bigbio/diann:latest` |
+| Singularity | 2.1.0 | `oras://ghcr.io/bigbio/diann-sif:2.1.0` |
+| Singularity | latest | `oras://ghcr.io/bigbio/diann-sif:latest` |
+
+### OpenMS Containers
+
+| Container Type | Version | URL |
+|----------------|---------|-----|
+| Docker | date-tagged | `ghcr.io/bigbio/openms-tools-thirdparty:YYYY.MM.DD` |
+| Docker | latest | `ghcr.io/bigbio/openms-tools-thirdparty:latest` |
+| Singularity | date-tagged | `oras://ghcr.io/bigbio/openms-tools-thirdparty-sif:YYYY.MM.DD` |
+| Singularity | latest | `oras://ghcr.io/bigbio/openms-tools-thirdparty-sif:latest` |
 
 ## ⚠️ Important License Information
 
 Please note the following license restrictions:
 
-- DIA-NN 1.8.1 and earlier: License permits distribution of Docker/Singularity images
-- DIA-NN 1.9.2 and 2.0: License **does not permit** distribution of pre-built images
-
-Before using this container, ensure compliance with the version-specific license:
-- [DIA-NN 1.9.2 License](diann-1.9.2/DIANN1.9.2-LICENSE.txt)
-- [DIA-NN 2.0 License](diann-2.0/DIANN2.0-LICENSE.txt)
+- DIA-NN: Please review the [DIA-NN license](diann-2.1.0/LICENSE.txt) before using
+- OpenMS: OpenMS is available under the [BSD 3-Clause License](https://github.com/OpenMS/OpenMS/blob/develop/LICENSE)
 
 ## Technical Specifications
 
-### Container Details
+### DIA-NN Container Details
 - Base Image: `ubuntu:22.04`
-- Available Versions: 
-  - DIA-NN 1.9.2
-  - DIA-NN 2.0
-  - DIA-NN 2.0.2
+- Available Version: DIA-NN 2.1.0
 - Architecture Support: `amd64`/`x86_64`
 
-### Included Dependencies
-| Category | Components |
-|----------|------------|
-| Build Tools | `g++`, `build-essential`, `cmake` |
-| Compression | `zlib1g-dev`, `libbz2-dev` |
-| Libraries | `libboost-all-dev` |
-| Utilities | `wget`, `locales`, `unzip` |
+### OpenMS Container Details
+- Sourced from: `ghcr.io/openms/openms-tools-thirdparty`
+- Architecture Support: `amd64`/`x86_64`
 
 ## Installation & Usage
 
-### Building the Images
+### Using Pre-built Docker Images
 
-#### Standard Build (x86_64/amd64)
 ```bash
-# Build DIA-NN 1.9.2
-cd diann-1.9.2/
-docker build -t diann:1.9.2 .
+# Pull DIA-NN Docker image
+docker pull ghcr.io/bigbio/diann:latest
 
-# Build DIA-NN 2.0
-cd diann-2.0/
-docker build -t diann:2.0 .
+# Pull OpenMS Docker image
+docker pull ghcr.io/bigbio/openms-tools-thirdparty:latest
 ```
 
-#### Platform-Specific Build (e.g., AMD Mac)
-```bash
-# Build DIA-NN 1.9.2
-cd diann-1.9.2/
-docker buildx build --platform linux/amd64 . --tag diann:1.9.2
+### Using Pre-built Singularity Images
 
-# Build DIA-NN 2.0
-cd diann-2.0/
-docker buildx build --platform linux/amd64 . --tag diann:2.0
+```bash
+# Pull DIA-NN Singularity image
+singularity pull diann.sif oras://ghcr.io/bigbio/diann-sif:latest
+
+# Pull OpenMS Singularity image
+singularity pull openms.sif oras://ghcr.io/bigbio/openms-tools-thirdparty-sif:latest
+```
+
+### Building the Images Locally
+
+#### DIA-NN Build
+```bash
+# Build DIA-NN 2.1.0
+cd diann-2.1.0/
+docker build -t diann:2.1.0 .
 ```
 
 ### Basic Usage
 
+#### DIA-NN Usage
 ```bash
 # View DIA-NN help
-docker run -it diann:1.9.2 diann --help
-docker run -it diann:2.0 diann --help
+docker run -it ghcr.io/bigbio/diann:latest diann --help
 
 # Process data (example)
-docker run -v /path/to/data:/data -it diann:2.0 diann \
+docker run -v /path/to/data:/data -it ghcr.io/bigbio/diann:latest diann \
   --f /data/input.raw \
   --lib /data/library.tsv \
   --out /data/results.tsv
 ```
 
+#### OpenMS Usage
+```bash
+# View OpenMS tools
+docker run -it ghcr.io/bigbio/openms-tools-thirdparty:latest ls /usr/local/bin/
+
+# Run an OpenMS tool (example)
+docker run -v /path/to/data:/data -it ghcr.io/bigbio/openms-tools-thirdparty:latest \
+  PeakPickerHiRes -in /data/input.mzML -out /data/output.mzML
+```
+
 ### Data Mounting
 When processing data, mount your local directories using Docker volumes:
 ```bash
-docker run -v /local/path:/container/path -it diann:2.0 diann [commands]
+docker run -v /local/path:/container/path -it ghcr.io/bigbio/diann:latest diann [commands]
 ```
+
+## CI/CD Workflows
+
+This repository includes two GitHub Actions workflows:
+
+1. **DIA-NN Docker Images**: Builds and pushes DIA-NN Docker and Singularity containers
+   - Triggered by: pushes to main, pull requests, releases, and manual dispatch
+   - Latest tag is applied on release events
+
+2. **OpenMS Containers Sync**: Syncs OpenMS containers from the official repository to BigBio
+   - Triggered by: pushes to main, releases, and manual dispatch
+   - Latest tag is applied on release events or when manually specified
 
 ## Performance Tips
 
 1. **Memory Allocation**: Ensure sufficient memory is allocated to Docker
 2. **Storage**: Use fast storage (SSD recommended) for data directories
-3. **CPU**: DIA-NN benefits from multiple cores; allocate accordingly
+3. **CPU**: These tools benefit from multiple cores; allocate accordingly
 4. **Temp Files**: Consider mounting a temp directory for large analyses
 
 ## Troubleshooting
@@ -110,7 +152,6 @@ Common issues and solutions:
 ## Maintainers
 
 - Yasset Perez-Riverol ([@ypriverol](https://github.com/ypriverol)) - [ypriverol@gmail.com](mailto:ypriverol@gmail.com)
-- Ryan Smith - [ryan.smith@imperial.ac.uk](mailto:ryan.smith@imperial.ac.uk)
 
 ## Contributing
 
@@ -122,13 +163,12 @@ We welcome contributions! Please:
 
 ## Citation
 
-If you use this container in your research, please cite:
+If you use these containers in your research, please cite:
 
 ```bibtex
-@software{diann_docker,
-  author = {Perez-Riverol, Yasset and Smith, Ryan},
-  title = {DIA-NN Docker Container},
+@software{quantms_docker,
+  author = {Perez-Riverol, Yasset},
+  title = {QuantMS Docker Containers},
   year = {2025},
-  url = {https://github.com/ypriverol/diann-container}
+  url = {https://github.com/ypriverol/quantms-docker}
 }
-```
