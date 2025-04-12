@@ -1,0 +1,250 @@
+name: QuantMS Containers Build and Sync
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - 'diann-*/Dockerfile'
+      - '.github/workflows/**'
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      push_images:
+        description: 'Push images to registry'
+        required: false
+        default: true
+        type: 'boolean'
+      push_release:
+        description: 'Push as release version'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  build-diann:
+    name: Build and Push DiaNN Docker Images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    env:
+      RETRY_TIMES: 3
+      RETRY_DELAY: 30
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GHCR_TOKEN }}
+
+    - name: Extract metadata for Docker
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ghcr.io/bigbio/diann
+        tags: |
+          type=raw,value=latest,enable={{is_default_branch}}
+          type=raw,value={{date 'YYYY.MM.DD'}}
+
+    - name: Set date tag
+      id: date
+      run: echo "DATE_TAG=$(date +'%Y.%m.%d')" >> $GITHUB_OUTPUT
+
+    - name: Build and Push DiaNN 2.1.0 image (Latest)
+      uses: docker/build-push-action@v5
+      with:
+        context: ./diann-2.1.0
+        push: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
+        tags: |
+          ghcr.io/bigbio/diann:2.1.0
+          ghcr.io/bigbio/diann:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        provenance: false
+
+    - name: Set up Singularity
+      if: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
+      uses: eWaterCycle/setup-singularity@v7
+      with:
+        singularity-version: 3.8.7
+
+    - name: Pull Docker image for Singularity conversion
+      if: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
+      run: |
+        # Pull the Docker image from GitHub Container Registry
+        docker pull ghcr.io/bigbio/diann:2.1.0
+        # Save the Docker image to a tar file
+        docker save ghcr.io/bigbio/diann:2.1.0 -o diann-2.1.0.tar
+
+    - name: Convert Docker image to Singularity
+      if: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
+      run: |
+        # Convert Docker tar to Singularity SIF
+        singularity build diann-2.1.0.sif docker-archive://diann-2.1.0.tar
+        # Verify the SIF file exists
+        ls -la diann-2.1.0.sif
+
+    - name: Login and Deploy Container
+      if: (github.event_name != 'pull_request')
+      env:
+        IS_RELEASE: ${{ github.event_name == 'release' }}
+      run: |
+        echo ${{ secrets.GHCR_TOKEN }} | singularity remote login -u ${{ secrets.GHCR_USERNAME }} --password-stdin oras://ghcr.io
+        
+        # Push with version tag
+        singularity push diann-2.1.0.sif oras://bigbio/diann-sif:2.1.0
+        
+        # Push with date tag
+        singularity push diann-2.1.0.sif oras://bigbio/diann-sif:2.1.0-${{ steps.date.outputs.DATE_TAG }}
+        
+        # If this is a release event, also tag as latest
+        if [[ "${{ env.IS_RELEASE }}" == "true" || "${{ github.event_name }}" == "release" ]]; then
+          singularity push diann-2.1.0.sif oras://bigbio/diann-sif:latest
+        fi
+
+    - name: Notify on success
+      if: success()
+      run: |
+        echo "::notice::Successfully built and pushed DiaNN Docker and Singularity images to ghcr.io/bigbio"
+
+    - name: Notify on failure
+      if: failure()
+      run: |
+        echo "::error::Failed to build or push DiaNN images. Check the logs for details."
+
+  sync-openms:
+    name: Sync OpenMS Containers
+    needs: build-diann
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Set date tag
+        id: date
+        run: echo "DATE_TAG=$(date +'%Y.%m.%d')" >> $GITHUB_OUTPUT
+
+      - name: Pull OpenMS Docker container
+        id: pull_docker
+        uses: nick-fields/retry@v2
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: docker pull ghcr.io/openms/openms-tools-thirdparty:latest
+
+      - name: Tag and push OpenMS Docker container
+        if: steps.pull_docker.outcome == 'success'
+        run: |
+          # Set container names
+          SOURCE_CONTAINER="ghcr.io/openms/openms-tools-thirdparty:latest"
+          TARGET_CONTAINER="ghcr.io/bigbio/openms-tools-thirdparty:${{ steps.date.outputs.DATE_TAG }}"
+          
+          echo "Tagging as $TARGET_CONTAINER"
+          docker tag $SOURCE_CONTAINER $TARGET_CONTAINER
+          
+          echo "Pushing $TARGET_CONTAINER"
+          docker push $TARGET_CONTAINER || {
+            echo "Failed to push $TARGET_CONTAINER, retrying..."
+            sleep 30
+            docker push $TARGET_CONTAINER
+          }
+          
+          # If this is a release push or a GitHub release event, also tag as latest
+          if [[ "${{ github.event.inputs.push_release }}" == "true" || "${{ github.event_name }}" == "release" ]]; then
+            LATEST_IMAGE="ghcr.io/bigbio/openms-tools-thirdparty:latest"
+            docker tag $SOURCE_CONTAINER $LATEST_IMAGE
+            docker push $LATEST_IMAGE || {
+              echo "Failed to push $LATEST_IMAGE, retrying..."
+              sleep 30
+              docker push $LATEST_IMAGE
+            }
+            echo "Pushed release version as $LATEST_IMAGE"
+          fi
+
+      - name: Set up Singularity
+        if: success()
+        uses: eWaterCycle/setup-singularity@v7
+        with:
+          singularity-version: 3.8.7
+          
+      - name: Configure Singularity for GitHub Container Registry
+        if: success()
+        run: |
+          # Create Singularity remote endpoint for GitHub Container Registry
+          singularity remote add --no-login GithubContainer oras://ghcr.io
+          
+          # Login to GitHub Container Registry
+          echo "${{ secrets.GHCR_TOKEN }}" | singularity remote login -u ${{ secrets.GHCR_USERNAME }} --password-stdin GithubContainer
+
+      - name: Pull OpenMS SIF container
+        id: pull_sif
+        if: success()
+        uses: nick-fields/retry@v2
+        with:
+          timeout_minutes: 15
+          max_attempts: 3
+          retry_wait_seconds: 60
+          command: singularity pull --force openms-tools-thirdparty.sif oras://ghcr.io/openms/openms-tools-thirdparty-sif:latest
+
+      - name: Login and Push OpenMS SIF container
+        if: steps.pull_sif.outcome == 'success'
+        env:
+          keepgoing: true
+        run: |
+          # Login to GitHub Container Registry
+          echo ${{ secrets.GHCR_TOKEN }} | singularity remote login -u ${{ secrets.GHCR_USERNAME }} --password-stdin oras://ghcr.io
+          
+          # Set SIF paths and push with date tag
+          echo "Pushing OpenMS SIF with date tag"
+          singularity push openms-tools-thirdparty.sif oras://bigbio/openms-tools-thirdparty-sif:${{ steps.date.outputs.DATE_TAG }} || {
+            echo "Failed to push with date tag, retrying..."
+            sleep 60
+            singularity push openms-tools-thirdparty.sif oras://bigbio/openms-tools-thirdparty-sif:${{ steps.date.outputs.DATE_TAG }}
+          }
+          
+          # If this is a release push or a GitHub release event, also tag as latest
+          if [[ "${{ github.event.inputs.push_release }}" == "true" || "${{ github.event_name }}" == "release" ]]; then
+            echo "Pushing OpenMS SIF as latest"
+            singularity push openms-tools-thirdparty.sif oras://bigbio/openms-tools-thirdparty-sif:latest || {
+              echo "Failed to push as latest, retrying..."
+              sleep 60
+              singularity push openms-tools-thirdparty.sif oras://bigbio/openms-tools-thirdparty-sif:latest
+            }
+          fi
+
+      - name: Notify on success
+        if: success()
+        run: |
+          echo "::notice::Successfully synced OpenMS containers to BigBio repositories"
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "::error::Failed to sync OpenMS containers. Check the logs for details."
