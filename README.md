@@ -21,12 +21,17 @@ These containerized versions offer:
 
 ### DIA-NN Containers
 
-| Container Type | Version | URL |
-|----------------|---------|-----|
-| Docker | 2.1.0 | `ghcr.io/bigbio/diann:2.1.0` |
-| Docker | latest | `ghcr.io/bigbio/diann:latest` |
-| Singularity | 2.1.0 | `oras://ghcr.io/bigbio/diann-sif:2.1.0` |
-| Singularity | latest | `oras://ghcr.io/bigbio/diann-sif:latest` |
+quantms team do not distribute the DIANN containers for versions superior to 1.8.0. The user has to build the container locally using the following command:
+
+```bash
+docker build -t diann:2.1.0 .
+```
+
+To build the singularity container, the user has to run the following command:
+
+```bash
+singularity build diann-2.1.0.sif docker-daemon://diann:2.1.0
+```
 
 ### OpenMS Containers
 
@@ -41,7 +46,7 @@ These containerized versions offer:
 
 Please note the following license restrictions:
 
-- DIA-NN: Please review the [DIA-NN license](diann-2.1.0/LICENSE.txt) before using
+- DIA-NN: Please review the [DIA-NN 2.1.0 license](diann-2.1.0/LICENSE.txt) before using
 - OpenMS: OpenMS is available under the [BSD 3-Clause License](https://github.com/OpenMS/OpenMS/blob/develop/LICENSE)
 
 ## Technical Specifications
@@ -70,9 +75,6 @@ docker pull ghcr.io/bigbio/openms-tools-thirdparty:latest
 ### Using Pre-built Singularity Images
 
 ```bash
-# Pull DIA-NN Singularity image
-singularity pull diann.sif oras://ghcr.io/bigbio/diann-sif:latest
-
 # Pull OpenMS Singularity image
 singularity pull openms.sif oras://ghcr.io/bigbio/openms-tools-thirdparty-sif:latest
 ```
@@ -91,7 +93,7 @@ docker build -t diann:2.1.0 .
 #### DIA-NN Usage
 ```bash
 # View DIA-NN help
-docker run -it ghcr.io/bigbio/diann:latest diann --help
+docker run -it diann:2.1.0 diann --help
 
 # Process data (example)
 docker run -v /path/to/data:/data -it ghcr.io/bigbio/diann:latest diann \
@@ -99,6 +101,20 @@ docker run -v /path/to/data:/data -it ghcr.io/bigbio/diann:latest diann \
   --lib /data/library.tsv \
   --out /data/results.tsv
 ```
+
+#### DIANN Usage in quantms pipeline
+
+After you build your container, you chave to add a custom configuration file to resolve the diann container. You can do this by creating a file called `diann_config.yml` in the `quantms` directory. The content of the file should be:
+
+```yaml
+process {
+    withLabel: diann {
+        container = '/path-singularity-file/diann-2.0.0.sif'
+    }
+}
+```
+
+Please check quantms documentation for more information about how to run the pipeline with custom configurations. 
 
 #### OpenMS Usage
 ```bash
