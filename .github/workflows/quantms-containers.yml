@@ -220,7 +220,7 @@ jobs:
           
           # Set SIF paths and push with date tag
           echo "Pushing OpenMS SIF with date tag"
-          singularity push openms-tools-thirdparty.sif oras://bigbio/openms-tools-thirdparty-sif:${{ steps.date.outputs.DATE_TAG }} || {
+          singularity push openms-tools-thirdparty.sif oras://ghcr.io/bigbio/openms-tools-thirdparty-sif:${{ steps.date.outputs.DATE_TAG }} || {
             echo "Failed to push with date tag, retrying..."
             sleep 60
             singularity push openms-tools-thirdparty.sif oras://ghcr.io/bigbio/openms-tools-thirdparty-sif:${{ steps.date.outputs.DATE_TAG }}
