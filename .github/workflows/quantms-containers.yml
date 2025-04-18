@@ -129,6 +129,9 @@ jobs:
       contents: read
       packages: write
 
+    env:
+      OPENMS_VERSION: "2025.04.14"  # Manually defined version for OpenMS
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -143,10 +146,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GHCR_TOKEN }}
 
-      - name: Set date tag
-        id: date
-        run: echo "DATE_TAG=$(date +'%Y.%m.%d')" >> $GITHUB_OUTPUT
-
       - name: Pull OpenMS Docker container
         id: pull_docker
         uses: nick-fields/retry@v2
@@ -159,9 +158,9 @@ jobs:
       - name: Tag and push OpenMS Docker container
         if: steps.pull_docker.outcome == 'success'
         run: |
-          # Set container names
+          # Set container names using the fixed version
           SOURCE_CONTAINER="ghcr.io/openms/openms-tools-thirdparty:latest"
-          TARGET_CONTAINER="ghcr.io/bigbio/openms-tools-thirdparty:${{ steps.date.outputs.DATE_TAG }}"
+          TARGET_CONTAINER="ghcr.io/bigbio/openms-tools-thirdparty:${{ env.OPENMS_VERSION }}"
           
           echo "Tagging as $TARGET_CONTAINER"
           docker tag $SOURCE_CONTAINER $TARGET_CONTAINER
@@ -218,12 +217,12 @@ jobs:
           # Login to GitHub Container Registry
           echo ${{ secrets.GHCR_TOKEN }} | singularity remote login -u ${{ secrets.GHCR_USERNAME }} --password-stdin oras://ghcr.io
           
-          # Set SIF paths and push with date tag
-          echo "Pushing OpenMS SIF with date tag"
-          singularity push openms-tools-thirdparty.sif oras://ghcr.io/bigbio/openms-tools-thirdparty-sif:${{ steps.date.outputs.DATE_TAG }} || {
-            echo "Failed to push with date tag, retrying..."
+          # Set SIF paths and push with version tag
+          echo "Pushing OpenMS SIF with version tag"
+          singularity push openms-tools-thirdparty.sif oras://ghcr.io/bigbio/openms-tools-thirdparty-sif:${{ env.OPENMS_VERSION }} || {
+            echo "Failed to push with version tag, retrying..."
             sleep 60
-            singularity push openms-tools-thirdparty.sif oras://ghcr.io/bigbio/openms-tools-thirdparty-sif:${{ steps.date.outputs.DATE_TAG }}
+            singularity push openms-tools-thirdparty.sif oras://ghcr.io/bigbio/openms-tools-thirdparty-sif:${{ env.OPENMS_VERSION }}
           }
           
           # If this is a release push or a GitHub release event, also tag as latest
