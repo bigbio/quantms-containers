@@ -48,14 +48,6 @@ jobs:
         registry: ghcr.io
         username: ${{ github.actor }}
         password: ${{ secrets.GHCR_TOKEN }}
-    
-    - name: Install GitHub CLI
-      run: |
-        curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
-        echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
-        sudo apt update
-        sudo apt install gh
-        gh auth login --with-token <<< "${{ secrets.GHCR_TOKEN }}"
 
     - name: Extract metadata for Docker
       id: meta
@@ -81,8 +73,6 @@ jobs:
         cache-from: type=gha
         cache-to: type=gha,mode=max
         provenance: false
-        
-    # Note: DiaNN containers remain private as per license requirements
 
     - name: Set up Singularity
       if: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
@@ -116,8 +106,6 @@ jobs:
         # Push with version tag
         singularity push diann-2.1.0.sif oras://ghcr.io/bigbio/diann-sif:2.1.0
         
-        # Note: DiaNN containers remain private as per license requirements
-        
         # If this is a release event, also tag as latest
         if [[ "${{ env.IS_RELEASE }}" == "true" || "${{ github.event_name }}" == "release" ]]; then
           singularity push diann-2.1.0.sif oras://ghcr.io/bigbio/diann-sif:latest
@@ -142,8 +130,7 @@ jobs:
       packages: write
 
     env:
-      # This version should be manually updated for each release
-      OPENMS_VERSION: "2025.04.12"  # Format: YYYY.MM.DD
+      OPENMS_VERSION: "2025.04.14"  # Manually defined version for OpenMS
 
     steps:
       - name: Checkout repository
@@ -158,14 +145,6 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GHCR_TOKEN }}
-      
-      - name: Install GitHub CLI
-        run: |
-          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
-          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
-          sudo apt update
-          sudo apt install gh
-          gh auth login --with-token <<< "${{ secrets.GHCR_TOKEN }}"
 
       - name: Pull OpenMS Docker container
         id: pull_docker
@@ -192,13 +171,6 @@ jobs:
             sleep 30
             docker push $TARGET_CONTAINER
           }
-          
-          # Make the package public
-          echo "Making package public"
-          gh api --method PATCH /orgs/bigbio/packages/container/openms-tools-thirdparty/visibility \
-            -f visibility="public" \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28"
           
           # If this is a release push or a GitHub release event, also tag as latest
           if [[ "${{ github.event.inputs.push_release }}" == "true" || "${{ github.event_name }}" == "release" ]]; then
@@ -252,13 +224,6 @@ jobs:
             sleep 60
             singularity push openms-tools-thirdparty.sif oras://ghcr.io/bigbio/openms-tools-thirdparty-sif:${{ env.OPENMS_VERSION }}
           }
-          
-          # Make the SIF package public
-          echo "Making SIF package public"
-          gh api --method PATCH /orgs/bigbio/packages/container/openms-tools-thirdparty-sif/visibility \
-            -f visibility="public" \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28"
           
           # If this is a release push or a GitHub release event, also tag as latest
           if [[ "${{ github.event.inputs.push_release }}" == "true" || "${{ github.event_name }}" == "release" ]]; then
