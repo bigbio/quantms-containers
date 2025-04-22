@@ -21,19 +21,20 @@ These containerized versions offer:
 
 ### DIA-NN Containers
 
-quantms team do not distribute the DIANN containers for versions superior to 1.8.0. The user has to build the container locally using the following command:
+**Important**: Due to licensing restrictions, DiaNN containers are not publicly distributed. Users must build these containers locally:
 
 ```bash
+# Build Docker container
+cd diann-2.1.0/
 docker build -t diann:2.1.0 .
-```
 
-To build the singularity container, the user has to run the following command:
-
-```bash
+# Build Singularity container from Docker
 singularity build diann-2.1.0.sif docker-daemon://diann:2.1.0
 ```
 
 ### OpenMS Containers
+
+OpenMS containers are publicly available and can be pulled directly:
 
 | Container Type | Version | URL |
 |----------------|---------|-----|
@@ -41,6 +42,8 @@ singularity build diann-2.1.0.sif docker-daemon://diann:2.1.0
 | Docker | latest | `ghcr.io/bigbio/openms-tools-thirdparty:latest` |
 | Singularity | date-tagged | `oras://ghcr.io/bigbio/openms-tools-thirdparty-sif:YYYY.MM.DD` |
 | Singularity | latest | `oras://ghcr.io/bigbio/openms-tools-thirdparty-sif:latest` |
+
+The date tag (YYYY.MM.DD) is manually set for each release to ensure version stability.
 
 ## ⚠️ Important License Information
 
@@ -168,6 +171,37 @@ Common issues and solutions:
 2. **Memory Issues**
    - Increase Docker memory allocation in Docker Desktop settings
    - Use `--memory` flag to specify container memory limit
+
+3. **OpenMS Singularity Pull Issues**
+   
+   If you encounter an error when pulling OpenMS Singularity images:
+   ```
+   FATAL: While pulling image from oci registry: error fetching image to cache: failed to get checksum for oras://ghcr.io/bigbio/openms-tools-thirdparty-sif:YYYY.MM.DD: GET https://ghcr.io/v2/bigbio/openms-tools-thirdparty-sif/manifests/YYYY.MM.DD: DENIED: requested access to the resource is denied
+   ```
+   
+   Try the following:
+   
+   - Verify you're using the correct date tag format (YYYY.MM.DD)
+   - Check the workflow logs to confirm the exact version tag that was published
+   - If using Nextflow, try increasing the pull timeout:
+     ```
+     nextflow run bigbio/quantms -r dev -profile test_lfq,singularity -with-singularity --singularity.pullTimeout '2h'
+     ```
+   - If the issue persists, please open an issue on the GitHub repository
+
+4. **DiaNN Container Issues**
+   
+   Remember that DiaNN containers must be built locally due to licensing restrictions:
+   
+   - Follow the build instructions in the "DiaNN Containers" section
+   - For quantms pipeline, specify your local DiaNN container path in a custom config file:
+     ```yaml
+     process {
+         withLabel: diann {
+             container = '/path-to-your-singularity-file/diann-2.1.0.sif'
+         }
+     }
+     ```
 
 ## Maintainers
 
