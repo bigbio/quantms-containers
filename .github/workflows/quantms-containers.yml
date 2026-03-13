@@ -113,7 +113,7 @@ jobs:
       env:
         IS_RELEASE: ${{ github.event_name == 'release' }}
       run: |
-        echo ${{ secrets.GHCR_TOKEN }} | singularity remote login -u ${{ secrets.GHCR_USERNAME }} --password-stdin oras://ghcr.io
+        echo ${{ secrets.GITHUB_TOKEN }} | singularity remote login -u ${{ secrets.GHCR_USERNAME }} --password-stdin oras://ghcr.io
         
         # Push with version tag
         singularity push diann-${{ matrix.version }}.sif oras://${{ env.SINGULARITY_IMAGE_NAME }}:${{ matrix.version }}
