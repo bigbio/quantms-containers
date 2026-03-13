@@ -26,6 +26,7 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository_owner }}/diann
+  SINGULARITY_IMAGE_NAME: ${{ github.repository_owner }}/diann-sif
   
 jobs:
   build-and-push:
@@ -115,17 +116,17 @@ jobs:
         echo ${{ secrets.GHCR_TOKEN }} | singularity remote login -u ${{ secrets.GHCR_USERNAME }} --password-stdin oras://ghcr.io
         
         # Push with version tag
-        singularity push diann-${{ matrix.version }}.sif oras://ghcr.io/bigbio/diann-sif:${{ matrix.version }}
+        singularity push diann-${{ matrix.version }}.sif oras://${{ env.SINGULARITY_IMAGE_NAME }}:${{ matrix.version }}
         
         # If this is a release event, also tag as latest
         if [[ "${{ env.IS_RELEASE }}" == "true" || "${{ github.event_name }}" == "release" ]]; then
-          singularity push diann-${{ matrix.version }}.sif oras://ghcr.io/bigbio/diann-sif:latest
+          singularity push diann-${{ matrix.version }}.sif oras://${{ env.SINGULARITY_IMAGE_NAME }}:latest
         fi
 
     - name: Notify on success
       if: success()
       run: |
-        echo "::notice::Successfully built and pushed DiaNN ${{ matrix.version }} Docker and Singularity images to ghcr.io/bigbio"
+        echo "::notice::Successfully built and pushed DiaNN ${{ matrix.version }} Docker and Singularity images to ghcr.io/${{ github.repository_owner }}"
 
     - name: Notify on failure
       if: failure()
