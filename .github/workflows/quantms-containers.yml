@@ -97,6 +97,7 @@ jobs:
       packages: write
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix: ${{ fromJSON(needs.detect-changes.outputs.matrix) }}
 
     steps:
@@ -116,6 +117,7 @@ jobs:
         with:
           context: ./${{ matrix.context }}
           push: ${{ github.event_name != 'pull_request' }}
+          load: true
           tags: |
             ${{ matrix.tag }}
             ${{ matrix.extra_tags }}
@@ -129,7 +131,7 @@ jobs:
           # Install Singularity
           sudo apt-get update && sudo apt-get install -y singularity-container || true
 
-          # Convert Docker → SIF
+          # Convert Docker → SIF (image is in local daemon via load: true)
           docker save ${{ matrix.tag }} -o image.tar
           singularity build image.sif docker-archive://image.tar
 
