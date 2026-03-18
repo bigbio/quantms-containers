@@ -39,44 +39,51 @@ jobs:
         if: github.event_name == 'push' || github.event_name == 'pull_request'
         with:
           filters: |
-            diann-2.2.0:  [ 'diann-2.2.0/**' ]
-            diann-2.1.0:  [ 'diann-2.1.0/**' ]
-            diann-2.0:    [ 'diann-2.0/**' ]
-            diann-1.9.2:  [ 'diann-1.9.2/**' ]
-            diann-1.8.1:  [ 'diann-1.8.1/**' ]
-            relink-1.0.0: [ 'relink-1.0.0/**' ]
+            diann_2_2_0:  [ 'diann-2.2.0/**' ]
+            diann_2_1_0:  [ 'diann-2.1.0/**' ]
+            diann_2_0:    [ 'diann-2.0/**' ]
+            diann_1_9_2:  [ 'diann-1.9.2/**' ]
+            diann_1_8_1:  [ 'diann-1.8.1/**' ]
+            relink_1_0_0: [ 'relink-1.0.0/**' ]
 
       - name: Build matrix from changes
         id: set-matrix
+        env:
+          EVENT: ${{ github.event_name }}
+          CHG_220: ${{ steps.filter.outputs.diann_2_2_0 }}
+          CHG_210: ${{ steps.filter.outputs.diann_2_1_0 }}
+          CHG_20:  ${{ steps.filter.outputs.diann_2_0 }}
+          CHG_192: ${{ steps.filter.outputs.diann_1_9_2 }}
+          CHG_181: ${{ steps.filter.outputs.diann_1_8_1 }}
+          CHG_RLK: ${{ steps.filter.outputs.relink_1_0_0 }}
         run: |
-          # Full list of all containers
           ALL='[
-            {"context":"diann-2.2.0","tag":"ghcr.io/bigbio/diann:2.2.0","sif":"diann-sif:2.2.0","extra_tags":""},
-            {"context":"diann-2.1.0","tag":"ghcr.io/bigbio/diann:2.1.0","sif":"diann-sif:2.1.0","extra_tags":"ghcr.io/bigbio/diann:latest"},
-            {"context":"diann-2.0","tag":"ghcr.io/bigbio/diann:2.0.2","sif":"diann-sif:2.0.2","extra_tags":""},
-            {"context":"diann-1.9.2","tag":"ghcr.io/bigbio/diann:1.9.2","sif":"diann-sif:1.9.2","extra_tags":""},
-            {"context":"diann-1.8.1","tag":"ghcr.io/bigbio/diann:1.8.1","sif":"diann-sif:1.8.1","extra_tags":""},
-            {"context":"relink-1.0.0","tag":"ghcr.io/bigbio/relink:1.0.0","sif":"relink-sif:1.0.0","extra_tags":"ghcr.io/bigbio/relink:latest"}
+            {"context":"diann-2.2.0","tag":"ghcr.io/bigbio/diann:2.2.0","sif":"diann-sif:2.2.0","extra_tags":"","chg":"CHG_220"},
+            {"context":"diann-2.1.0","tag":"ghcr.io/bigbio/diann:2.1.0","sif":"diann-sif:2.1.0","extra_tags":"ghcr.io/bigbio/diann:latest","chg":"CHG_210"},
+            {"context":"diann-2.0","tag":"ghcr.io/bigbio/diann:2.0.2","sif":"diann-sif:2.0.2","extra_tags":"","chg":"CHG_20"},
+            {"context":"diann-1.9.2","tag":"ghcr.io/bigbio/diann:1.9.2","sif":"diann-sif:1.9.2","extra_tags":"","chg":"CHG_192"},
+            {"context":"diann-1.8.1","tag":"ghcr.io/bigbio/diann:1.8.1","sif":"diann-sif:1.8.1","extra_tags":"","chg":"CHG_181"},
+            {"context":"relink-1.0.0","tag":"ghcr.io/bigbio/relink:1.0.0","sif":"relink-sif:1.0.0","extra_tags":"ghcr.io/bigbio/relink:latest","chg":"CHG_RLK"}
           ]'
 
-          # On release/dispatch → build all; on push/PR → only changed
-          if [[ "${{ github.event_name }}" == "release" || "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "matrix={\"include\":$(echo "$ALL" | jq -c '.')}" >> $GITHUB_OUTPUT
+          if [[ "$EVENT" == "release" || "$EVENT" == "workflow_dispatch" ]]; then
+            RESULT=$(echo "$ALL" | jq -c '[.[] | del(.chg)]')
           else
-            FILTERED=$(echo "$ALL" | jq -c '[.[] | select(
-              (.context == "diann-2.2.0"  and "${{ steps.filter.outputs.diann-2_2_0 || 'false' }}" == "true") or
-              (.context == "diann-2.1.0"  and "${{ steps.filter.outputs.diann-2_1_0 || 'false' }}" == "true") or
-              (.context == "diann-2.0"    and "${{ steps.filter.outputs.diann-2_0 || 'false' }}" == "true") or
-              (.context == "diann-1.9.2"  and "${{ steps.filter.outputs.diann-1_9_2 || 'false' }}" == "true") or
-              (.context == "diann-1.8.1"  and "${{ steps.filter.outputs.diann-1_8_1 || 'false' }}" == "true") or
-              (.context == "relink-1.0.0" and "${{ steps.filter.outputs.relink-1_0_0 || 'false' }}" == "true")
-            )]')
-            if [[ "$FILTERED" == "[]" ]]; then
-              echo "matrix={\"include\":[]}" >> $GITHUB_OUTPUT
-            else
-              echo "matrix={\"include\":$FILTERED}" >> $GITHUB_OUTPUT
-            fi
+            RESULT=$(echo "$ALL" | jq -c --arg c220 "${CHG_220:-false}" --arg c210 "${CHG_210:-false}" \
+              --arg c20 "${CHG_20:-false}" --arg c192 "${CHG_192:-false}" \
+              --arg c181 "${CHG_181:-false}" --arg crlk "${CHG_RLK:-false}" \
+              '[.[] | select(
+                (.chg == "CHG_220" and $c220 == "true") or
+                (.chg == "CHG_210" and $c210 == "true") or
+                (.chg == "CHG_20"  and $c20  == "true") or
+                (.chg == "CHG_192" and $c192 == "true") or
+                (.chg == "CHG_181" and $c181 == "true") or
+                (.chg == "CHG_RLK" and $crlk == "true")
+              ) | del(.chg)]')
           fi
+
+          echo "matrix={\"include\":$RESULT}" >> $GITHUB_OUTPUT
+          echo "Built matrix: $RESULT"
 
   # ── Build & push containers (one job per changed Dockerfile) ───────────
   build:
