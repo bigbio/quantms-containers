@@ -38,13 +38,14 @@ jobs:
         id: filter
         if: github.event_name == 'push' || github.event_name == 'pull_request'
         with:
+          # Also triggers on workflow changes so CI fixes rebuild affected containers
           filters: |
-            diann_2_2_0:  [ 'diann-2.2.0/**' ]
-            diann_2_1_0:  [ 'diann-2.1.0/**' ]
-            diann_2_0:    [ 'diann-2.0/**' ]
-            diann_1_9_2:  [ 'diann-1.9.2/**' ]
-            diann_1_8_1:  [ 'diann-1.8.1/**' ]
-            relink_1_0_0: [ 'relink-1.0.0/**' ]
+            diann_2_2_0:  [ 'diann-2.2.0/**', '.github/workflows/**' ]
+            diann_2_1_0:  [ 'diann-2.1.0/**', '.github/workflows/**' ]
+            diann_2_0:    [ 'diann-2.0/**', '.github/workflows/**' ]
+            diann_1_9_2:  [ 'diann-1.9.2/**', '.github/workflows/**' ]
+            diann_1_8_1:  [ 'diann-1.8.1/**', '.github/workflows/**' ]
+            relink_1_0_0: [ 'relink-1.0.0/**', '.github/workflows/**' ]
 
       - name: Build matrix from changes
         id: set-matrix
