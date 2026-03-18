@@ -1,12 +1,13 @@
 # QuantMS Docker Containers
 
-A repository of production-ready Docker and Singularity containers for proteomics tools with special in quantms, including **DIA-NN** and **OpenMS**.
+A repository of production-ready Docker and Singularity containers for proteomics tools used in quantms pipelines, including **DIA-NN**, **Relink**, and **OpenMS**.
 
 ## Overview
 
 This repository provides containerized versions of popular proteomics tools:
 
 - [DIA-NN](https://github.com/vdemichev/DiaNN): A powerful software solution for analyzing DIA proteomics data
+- [Relink](https://github.com/bigbio/relink): Crosslinking mass spectrometry analysis pipeline (xiSEARCH, xiFDR, Scout)
 - [OpenMS](https://www.openms.de/): A versatile open-source software for mass spectrometry data analysis
 
 These containerized versions offer:
@@ -21,15 +22,55 @@ These containerized versions offer:
 
 ### DIA-NN Containers
 
-**Important**: Due to licensing restrictions, DiaNN containers are not publicly distributed. Users must build these containers locally:
+**Important**: Due to licensing restrictions, DIA-NN containers are not publicly distributed. Users must build these containers locally or have access to the private `ghcr.io/bigbio/diann` registry.
+
+| Version | Directory | Key Features | Container Tag |
+|---------|-----------|-------------|---------------|
+| 1.8.1 | `diann-1.8.1/` | Core DIA-NN, library-free analysis | `ghcr.io/bigbio/diann:1.8.1` |
+| 1.9.2 | `diann-1.9.2/` | QuantUMS quantification, redesigned NN | `ghcr.io/bigbio/diann:1.9.2` |
+| 2.0.2 | `diann-2.0/` | Parquet output, proteoform confidence | `ghcr.io/bigbio/diann:2.0.2` |
+| 2.1.0 | `diann-2.1.0/` | Native .raw on Linux | `ghcr.io/bigbio/diann:2.1.0` |
+| 2.2.0 | `diann-2.2.0/` | Latest release | `ghcr.io/bigbio/diann:2.2.0` |
 
 ```bash
-# Build Docker container
+# Build Docker container locally
 cd diann-2.1.0/
 docker build -t diann:2.1.0 .
 
 # Build Singularity container from Docker
 singularity build diann-2.1.0.sif docker-daemon://diann:2.1.0
+```
+
+### Relink Container
+
+The Relink container provides a complete crosslinking mass spectrometry analysis environment.
+
+| Component | Version | Description |
+|-----------|---------|-------------|
+| xiSEARCH | 1.8.11 | Crosslink identification search engine |
+| xiFDR | 2.3.10 | FDR estimation for crosslinked peptides |
+| Scout | 2.0.0 | Crosslink analysis tool |
+| pyOpenMS | latest | Python bindings for OpenMS |
+| .NET Runtime | 9.0 | Required by Scout |
+| Java JRE | 21 | Required by xiSEARCH and xiFDR |
+
+| Container Type | Tag | URL |
+|----------------|-----|-----|
+| Docker | 1.0.0 | `ghcr.io/bigbio/relink:1.0.0` |
+| Docker | latest | `ghcr.io/bigbio/relink:latest` |
+| Singularity | 1.0.0 | `oras://ghcr.io/bigbio/relink-sif:1.0.0` |
+
+```bash
+# Pull Relink Docker image
+docker pull ghcr.io/bigbio/relink:latest
+
+# Run xiSEARCH
+docker run -v /path/to/data:/data ghcr.io/bigbio/relink:latest \
+  java -jar /opt/xisearch/xiSEARCH.jar --help
+
+# Run Scout
+docker run -v /path/to/data:/data ghcr.io/bigbio/relink:latest \
+  dotnet /opt/scout/Scout_Unix.dll --help
 ```
 
 ### OpenMS Containers
@@ -45,94 +86,101 @@ OpenMS containers are publicly available and can be pulled directly:
 
 The date tag (YYYY.MM.DD) is manually set for each release to ensure version stability.
 
-## ⚠️ Important License Information
+## License Information
 
 Please note the following license restrictions:
 
-- DIA-NN: Please review the [DIA-NN 2.1.0 license](diann-2.1.0/LICENSE.txt) before using
-- OpenMS: OpenMS is available under the [BSD 3-Clause License](https://github.com/OpenMS/OpenMS/blob/develop/LICENSE)
+- **DIA-NN**: Custom academic license with restrictions. Please review the [DIA-NN license](diann-2.1.0/LICENSE.txt) before using. No commercial use or cloud deployment without collaboration agreement.
+- **Relink/xiSEARCH/xiFDR/Scout**: Please review the individual tool licenses
+- **OpenMS**: Available under the [BSD 3-Clause License](https://github.com/OpenMS/OpenMS/blob/develop/LICENSE)
 
 ## Technical Specifications
 
-### DIA-NN Container Details
+### DIA-NN Containers
 - Base Image: `ubuntu:22.04`
-- Available Version: DIA-NN 2.1.0
-- Architecture Support: `amd64`/`x86_64`
+- Available Versions: 1.8.1, 1.9.2, 2.0.2, 2.1.0, 2.2.0
+- Architecture: `amd64`/`x86_64`
 
-### OpenMS Container Details
+### Relink Container
+- Base Image: `python:3.12-slim` (multi-stage build)
+- Version: 1.0.0
+- Architecture: `amd64`/`x86_64`
+- Includes: Java 21, .NET 9.0, Python 3.12, pyOpenMS, polars, pandas
+
+### OpenMS Containers
 - Sourced from: `ghcr.io/openms/openms-tools-thirdparty`
-- Architecture Support: `amd64`/`x86_64`
+- Architecture: `amd64`/`x86_64`
 
 ## Installation & Usage
 
 ### Using Pre-built Docker Images
 
 ```bash
-# Pull DIA-NN Docker image
-docker pull ghcr.io/bigbio/diann:latest
+# Pull DIA-NN Docker image (requires GHCR access)
+docker pull ghcr.io/bigbio/diann:2.1.0
+
+# Pull Relink Docker image
+docker pull ghcr.io/bigbio/relink:latest
 
 # Pull OpenMS Docker image
 docker pull ghcr.io/bigbio/openms-tools-thirdparty:latest
 ```
 
-### Using Pre-built Singularity Images
+### Building Images Locally
 
 ```bash
-# Pull OpenMS Singularity image
-singularity pull openms.sif oras://ghcr.io/bigbio/openms-tools-thirdparty-sif:latest
-```
+# Build DIA-NN (any version)
+cd diann-2.1.0/ && docker build -t diann:2.1.0 .
 
-### Building the Images Locally
-
-#### DIA-NN Build
-```bash
-# Build DIA-NN 2.1.0
-cd diann-2.1.0/
-docker build -t diann:2.1.0 .
+# Build Relink
+cd relink-1.0.0/ && docker build -t relink:1.0.0 .
 ```
 
 ### Basic Usage
 
-#### DIA-NN Usage
+#### DIA-NN
 ```bash
-# View DIA-NN help
-docker run -it diann:2.1.0 diann --help
-
-# Process data (example)
-docker run -v /path/to/data:/data -it ghcr.io/bigbio/diann:latest diann \
+docker run -v /path/to/data:/data ghcr.io/bigbio/diann:2.1.0 diann \
   --f /data/input.raw \
   --lib /data/library.tsv \
   --out /data/results.tsv
 ```
 
-#### DIANN Usage in quantms pipeline
+#### DIA-NN in quantmsdiann pipeline
 
-After you build your container, you chave to add a custom configuration file to resolve the diann container. You can do this by creating a file called `diann_config.yml` in the `quantms` directory. The content of the file should be:
+After building your container, create a custom configuration file to override the DIA-NN container:
 
-```yaml
+```nextflow
 process {
     withLabel: diann {
-        container = '/path-singularity-file/diann-2.0.0.sif'
+        container = '/path-singularity-file/diann-2.1.0.sif'
     }
 }
 ```
 
-Please check quantms documentation for more information about how to run the pipeline with custom configurations. 
+Please check [quantmsdiann documentation](https://github.com/bigbio/quantmsdiann) for more information.
 
-#### OpenMS Usage
+#### Relink
 ```bash
-# View OpenMS tools
-docker run -it ghcr.io/bigbio/openms-tools-thirdparty:latest ls /usr/local/bin/
+# Run xiSEARCH
+docker run -v /path/to/data:/data ghcr.io/bigbio/relink:latest \
+  java -jar /opt/xisearch/xiSEARCH.jar [options]
 
-# Run an OpenMS tool (example)
-docker run -v /path/to/data:/data -it ghcr.io/bigbio/openms-tools-thirdparty:latest \
+# Run Scout
+docker run -v /path/to/data:/data ghcr.io/bigbio/relink:latest \
+  dotnet /opt/scout/Scout_Unix.dll [options]
+```
+
+#### OpenMS
+```bash
+docker run -v /path/to/data:/data ghcr.io/bigbio/openms-tools-thirdparty:latest \
   PeakPickerHiRes -in /data/input.mzML -out /data/output.mzML
 ```
 
 ### Data Mounting
 When processing data, mount your local directories using Docker volumes:
 ```bash
-docker run -v /local/path:/container/path -it ghcr.io/bigbio/diann:latest diann [commands]
+docker run -v /local/path:/container/path -it <container> [commands]
 ```
 
 ## CI/CD Workflow
@@ -140,68 +188,28 @@ docker run -v /local/path:/container/path -it ghcr.io/bigbio/diann:latest diann 
 This repository includes a GitHub Actions workflow that builds and syncs all containers:
 
 **QuantMS Containers Build and Sync**: A combined workflow that:
-1. First builds and pushes DIA-NN Docker and Singularity containers
-2. Then syncs OpenMS containers from the official repository to BigBio
+1. Builds and pushes DIA-NN Docker and Singularity containers (all versions)
+2. Builds and pushes Relink Docker and Singularity containers
+3. Syncs OpenMS containers from the official repository to BigBio
 
 The workflow is triggered by:
 - Pushes to the main branch
-- Pull requests (for DiaNN builds only)
+- Pull requests (for Dockerfile changes)
 - Release events (which also tag images as "latest")
 - Manual dispatch with configurable options
 
-This sequential approach ensures that all containers are built and pushed in a coordinated manner.
-
-## Performance Tips
-
-1. **Memory Allocation**: Ensure sufficient memory is allocated to Docker
-2. **Storage**: Use fast storage (SSD recommended) for data directories
-3. **CPU**: These tools benefit from multiple cores; allocate accordingly
-4. **Temp Files**: Consider mounting a temp directory for large analyses
-
 ## Troubleshooting
-
-Common issues and solutions:
 
 1. **Permission Errors**
    ```bash
-   # Fix file ownership issues
    chown -R $(id -u):$(id -g) /path/to/output
    ```
 
-2. **Memory Issues**
-   - Increase Docker memory allocation in Docker Desktop settings
-   - Use `--memory` flag to specify container memory limit
+2. **Memory Issues**: Increase Docker memory allocation in Docker Desktop settings
 
-3. **OpenMS Singularity Pull Issues**
-   
-   If you encounter an error when pulling OpenMS Singularity images:
-   ```
-   FATAL: While pulling image from oci registry: error fetching image to cache: failed to get checksum for oras://ghcr.io/bigbio/openms-tools-thirdparty-sif:YYYY.MM.DD: GET https://ghcr.io/v2/bigbio/openms-tools-thirdparty-sif/manifests/YYYY.MM.DD: DENIED: requested access to the resource is denied
-   ```
-   
-   Try the following:
-   
-   - Verify you're using the correct date tag format (YYYY.MM.DD)
-   - Check the workflow logs to confirm the exact version tag that was published
-   - If using Nextflow, try increasing the pull timeout:
-     ```
-     nextflow run bigbio/quantms -r dev -profile test_lfq,singularity -with-singularity --singularity.pullTimeout '2h'
-     ```
-   - If the issue persists, please open an issue on the GitHub repository
+3. **DIA-NN Container Issues**: Must be built locally or with GHCR access due to licensing
 
-4. **DiaNN Container Issues**
-   
-   Remember that DiaNN containers must be built locally due to licensing restrictions:
-   
-   - Follow the build instructions in the "DiaNN Containers" section
-   - For quantms pipeline, specify your local DiaNN container path in a custom config file:
-     ```yaml
-     process {
-         withLabel: diann {
-             container = '/path-to-your-singularity-file/diann-2.1.0.sif'
-         }
-     }
-     ```
+4. **Relink Java/Dotnet Issues**: Ensure the container has sufficient memory (recommend >= 4GB)
 
 ## Maintainers
 
@@ -220,9 +228,10 @@ We welcome contributions! Please:
 If you use these containers in your research, please cite:
 
 ```bibtex
-@software{quantms_docker,
+@software{quantms_containers,
   author = {Perez-Riverol, Yasset},
   title = {QuantMS Docker Containers},
   year = {2025},
-  url = {https://github.com/ypriverol/quantms-docker}
+  url = {https://github.com/bigbio/quantms-containers}
 }
+```
