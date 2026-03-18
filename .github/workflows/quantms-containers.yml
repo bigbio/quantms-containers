@@ -2,526 +2,184 @@ name: QuantMS Containers Build and Sync
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
     paths:
-      - 'diann-*/Dockerfile'
-      - 'relink-*/Dockerfile'
-      - '.github/workflows/**'
+      - "diann-*/Dockerfile"
+      - "relink-*/Dockerfile"
+      - ".github/workflows/**"
   release:
     types: [published]
   workflow_dispatch:
     inputs:
       push_images:
-        description: 'Push images to registry'
+        description: "Push images to registry"
         required: false
         default: true
-        type: 'boolean'
+        type: "boolean"
       push_release:
-        description: 'Push as release version'
+        description: "Push as release version"
         required: false
         default: false
         type: boolean
 
 jobs:
-  build-diann-2-1-0:
-    name: Build and Push DiaNN 2.1.0 Docker Images
+  # ── Detect which Dockerfiles changed ───────────────────────────────────
+  detect-changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        if: github.event_name == 'push' || github.event_name == 'pull_request'
+        with:
+          filters: |
+            diann-2.2.0:  [ 'diann-2.2.0/**' ]
+            diann-2.1.0:  [ 'diann-2.1.0/**' ]
+            diann-2.0:    [ 'diann-2.0/**' ]
+            diann-1.9.2:  [ 'diann-1.9.2/**' ]
+            diann-1.8.1:  [ 'diann-1.8.1/**' ]
+            relink-1.0.0: [ 'relink-1.0.0/**' ]
+
+      - name: Build matrix from changes
+        id: set-matrix
+        run: |
+          # Full list of all containers
+          ALL='[
+            {"context":"diann-2.2.0","tag":"ghcr.io/bigbio/diann:2.2.0","sif":"diann-sif:2.2.0","extra_tags":""},
+            {"context":"diann-2.1.0","tag":"ghcr.io/bigbio/diann:2.1.0","sif":"diann-sif:2.1.0","extra_tags":"ghcr.io/bigbio/diann:latest"},
+            {"context":"diann-2.0","tag":"ghcr.io/bigbio/diann:2.0.2","sif":"diann-sif:2.0.2","extra_tags":""},
+            {"context":"diann-1.9.2","tag":"ghcr.io/bigbio/diann:1.9.2","sif":"diann-sif:1.9.2","extra_tags":""},
+            {"context":"diann-1.8.1","tag":"ghcr.io/bigbio/diann:1.8.1","sif":"diann-sif:1.8.1","extra_tags":""},
+            {"context":"relink-1.0.0","tag":"ghcr.io/bigbio/relink:1.0.0","sif":"relink-sif:1.0.0","extra_tags":"ghcr.io/bigbio/relink:latest"}
+          ]'
+
+          # On release/dispatch → build all; on push/PR → only changed
+          if [[ "${{ github.event_name }}" == "release" || "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "matrix={\"include\":$(echo "$ALL" | jq -c '.')}" >> $GITHUB_OUTPUT
+          else
+            FILTERED=$(echo "$ALL" | jq -c '[.[] | select(
+              (.context == "diann-2.2.0"  and "${{ steps.filter.outputs.diann-2_2_0 || 'false' }}" == "true") or
+              (.context == "diann-2.1.0"  and "${{ steps.filter.outputs.diann-2_1_0 || 'false' }}" == "true") or
+              (.context == "diann-2.0"    and "${{ steps.filter.outputs.diann-2_0 || 'false' }}" == "true") or
+              (.context == "diann-1.9.2"  and "${{ steps.filter.outputs.diann-1_9_2 || 'false' }}" == "true") or
+              (.context == "diann-1.8.1"  and "${{ steps.filter.outputs.diann-1_8_1 || 'false' }}" == "true") or
+              (.context == "relink-1.0.0" and "${{ steps.filter.outputs.relink-1_0_0 || 'false' }}" == "true")
+            )]')
+            if [[ "$FILTERED" == "[]" ]]; then
+              echo "matrix={\"include\":[]}" >> $GITHUB_OUTPUT
+            else
+              echo "matrix={\"include\":$FILTERED}" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+  # ── Build & push containers (one job per changed Dockerfile) ───────────
+  build:
+    name: "Build ${{ matrix.context }}"
+    needs: detect-changes
+    if: fromJSON(needs.detect-changes.outputs.matrix).include[0] != null
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
-
-    env:
-      RETRY_TIMES: 3
-      RETRY_DELAY: 30
-
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-
-    - name: Log in to GitHub Container Registry
-      uses: docker/login-action@v3
-      with:
-        registry: ghcr.io
-        username: ${{ github.actor }}
-        password: ${{ secrets.GHCR_TOKEN }}
-
-    - name: Extract metadata for Docker
-      id: meta
-      uses: docker/metadata-action@v5
-      with:
-        images: ghcr.io/bigbio/diann
-        tags: |
-          type=raw,value=latest,enable={{is_default_branch}}
-          type=raw,value={{date 'YYYY.MM.DD'}}
-
-    - name: Set date tag
-      id: date
-      run: echo "DATE_TAG=$(date +'%Y.%m.%d')" >> $GITHUB_OUTPUT
-
-    - name: Build and Push DiaNN 2.1.0 image (Latest)
-      uses: docker/build-push-action@v5
-      with:
-        context: ./diann-2.1.0
-        push: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
-        tags: |
-          ghcr.io/bigbio/diann:2.1.0
-          ghcr.io/bigbio/diann:latest
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-        provenance: false
-
-    - name: Set up Singularity
-      if: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
-      uses: eWaterCycle/setup-singularity@v7
-      with:
-        singularity-version: 3.8.7
-
-    - name: Pull Docker image for Singularity conversion
-      if: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
-      run: |
-        # Pull the Docker image from GitHub Container Registry
-        docker pull ghcr.io/bigbio/diann:2.1.0
-        # Save the Docker image to a tar file
-        docker save ghcr.io/bigbio/diann:2.1.0 -o diann-2.1.0.tar
-
-    - name: Convert Docker image to Singularity
-      if: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
-      run: |
-        # Convert Docker tar to Singularity SIF
-        singularity build diann-2.1.0.sif docker-archive://diann-2.1.0.tar
-        # Verify the SIF file exists
-        ls -la diann-2.1.0.sif
-
-    - name: Login and Deploy Container
-      if: (github.event_name != 'pull_request')
-      env:
-        IS_RELEASE: ${{ github.event_name == 'release' }}
-      run: |
-        echo ${{ secrets.GHCR_TOKEN }} | singularity remote login -u ${{ secrets.GHCR_USERNAME }} --password-stdin oras://ghcr.io
-        
-        # Push with version tag
-        singularity push diann-2.1.0.sif oras://ghcr.io/bigbio/diann-sif:2.1.0
-        
-        # If this is a release event, also tag as latest
-        if [[ "${{ env.IS_RELEASE }}" == "true" || "${{ github.event_name }}" == "release" ]]; then
-          singularity push diann-2.1.0.sif oras://ghcr.io/bigbio/diann-sif:latest
-        fi
-
-    - name: Notify on success
-      if: success()
-      run: |
-        echo "::notice::Successfully built and pushed DiaNN 2.1.0 Docker and Singularity images to ghcr.io/bigbio"
-
-    - name: Notify on failure
-      if: failure()
-      run: |
-        echo "::error::Failed to build or push DiaNN 2.1.0 images. Check the logs for details."
-
-  build-diann-2-2-0:
-    name: Build and Push DiaNN 2.2.0 Docker Images
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-    - name: Log in to GitHub Container Registry
-      uses: docker/login-action@v3
-      with:
-        registry: ghcr.io
-        username: ${{ github.actor }}
-        password: ${{ secrets.GHCR_TOKEN }}
-    - name: Build and Push DiaNN 2.2.0 image
-      uses: docker/build-push-action@v5
-      with:
-        context: ./diann-2.2.0
-        push: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
-        tags: ghcr.io/bigbio/diann:2.2.0
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-        provenance: false
-    - name: Set up Singularity
-      if: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
-      uses: eWaterCycle/setup-singularity@v7
-      with:
-        singularity-version: 3.8.7
-    - name: Convert to Singularity and push
-      if: (github.event_name != 'pull_request')
-      run: |
-        docker pull ghcr.io/bigbio/diann:2.2.0
-        docker save ghcr.io/bigbio/diann:2.2.0 -o diann-2.2.0.tar
-        singularity build diann-2.2.0.sif docker-archive://diann-2.2.0.tar
-        echo ${{ secrets.GHCR_TOKEN }} | singularity remote login -u ${{ secrets.GHCR_USERNAME }} --password-stdin oras://ghcr.io
-        singularity push diann-2.2.0.sif oras://ghcr.io/bigbio/diann-sif:2.2.0
-
-  build-diann-2-0:
-    name: Build and Push DiaNN 2.0.2 Docker Images
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-    - name: Log in to GitHub Container Registry
-      uses: docker/login-action@v3
-      with:
-        registry: ghcr.io
-        username: ${{ github.actor }}
-        password: ${{ secrets.GHCR_TOKEN }}
-    - name: Build and Push DiaNN 2.0.2 image
-      uses: docker/build-push-action@v5
-      with:
-        context: ./diann-2.0
-        push: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
-        tags: ghcr.io/bigbio/diann:2.0.2
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-        provenance: false
-    - name: Set up Singularity
-      if: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
-      uses: eWaterCycle/setup-singularity@v7
-      with:
-        singularity-version: 3.8.7
-    - name: Convert to Singularity and push
-      if: (github.event_name != 'pull_request')
-      run: |
-        docker pull ghcr.io/bigbio/diann:2.0.2
-        docker save ghcr.io/bigbio/diann:2.0.2 -o diann-2.0.2.tar
-        singularity build diann-2.0.2.sif docker-archive://diann-2.0.2.tar
-        echo ${{ secrets.GHCR_TOKEN }} | singularity remote login -u ${{ secrets.GHCR_USERNAME }} --password-stdin oras://ghcr.io
-        singularity push diann-2.0.2.sif oras://ghcr.io/bigbio/diann-sif:2.0.2
-
-  build-diann-1-9-2:
-    name: Build and Push DiaNN 1.9.2 Docker Images
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-    - name: Log in to GitHub Container Registry
-      uses: docker/login-action@v3
-      with:
-        registry: ghcr.io
-        username: ${{ github.actor }}
-        password: ${{ secrets.GHCR_TOKEN }}
-    - name: Build and Push DiaNN 1.9.2 image
-      uses: docker/build-push-action@v5
-      with:
-        context: ./diann-1.9.2
-        push: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
-        tags: ghcr.io/bigbio/diann:1.9.2
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-        provenance: false
-    - name: Set up Singularity
-      if: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
-      uses: eWaterCycle/setup-singularity@v7
-      with:
-        singularity-version: 3.8.7
-    - name: Convert to Singularity and push
-      if: (github.event_name != 'pull_request')
-      run: |
-        docker pull ghcr.io/bigbio/diann:1.9.2
-        docker save ghcr.io/bigbio/diann:1.9.2 -o diann-1.9.2.tar
-        singularity build diann-1.9.2.sif docker-archive://diann-1.9.2.tar
-        echo ${{ secrets.GHCR_TOKEN }} | singularity remote login -u ${{ secrets.GHCR_USERNAME }} --password-stdin oras://ghcr.io
-        singularity push diann-1.9.2.sif oras://ghcr.io/bigbio/diann-sif:1.9.2
-
-  build-diann-1-8-1:
-    name: Build and Push DiaNN 1.8.1 Docker Images
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
-    env:
-      RETRY_TIMES: 3
-      RETRY_DELAY: 30
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.detect-changes.outputs.matrix) }}
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v3
 
-    - name: Log in to GitHub Container Registry
-      uses: docker/login-action@v3
-      with:
-        registry: ghcr.io
-        username: ${{ github.actor }}
-        password: ${{ secrets.GHCR_TOKEN }}
-
-    - name: Build and Push DiaNN 1.8.1 image
-      uses: docker/build-push-action@v5
-      with:
-        context: ./diann-1.8.1
-        push: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
-        tags: |
-          ghcr.io/bigbio/diann:1.8.1
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-        provenance: false
-
-    - name: Set up Singularity
-      if: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
-      uses: eWaterCycle/setup-singularity@v7
-      with:
-        singularity-version: 3.8.7
-
-    - name: Pull Docker image for Singularity conversion
-      if: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
-      run: |
-        # Pull the Docker image from GitHub Container Registry
-        docker pull ghcr.io/bigbio/diann:1.8.1
-        # Save the Docker image to a tar file
-        docker save ghcr.io/bigbio/diann:1.8.1 -o diann-1.8.1.tar
-
-    - name: Convert Docker image to Singularity
-      if: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
-      run: |
-        # Convert Docker tar to Singularity SIF
-        singularity build diann-1.8.1.sif docker-archive://diann-1.8.1.tar
-        # Verify the SIF file exists
-        ls -la diann-1.8.1.sif
-
-    - name: Login and Deploy Container
-      if: (github.event_name != 'pull_request')
-      run: |
-        echo ${{ secrets.GHCR_TOKEN }} | singularity remote login -u ${{ secrets.GHCR_USERNAME }} --password-stdin oras://ghcr.io
-        
-        # Push with version tag
-        singularity push diann-1.8.1.sif oras://ghcr.io/bigbio/diann-sif:1.8.1
-
-    - name: Notify on success
-      if: success()
-      run: |
-        echo "::notice::Successfully built and pushed DiaNN 1.8.1 Docker and Singularity images to ghcr.io/bigbio"
-
-    - name: Notify on failure
-      if: failure()
-      run: |
-        echo "::error::Failed to build or push DiaNN 1.8.1 images. Check the logs for details."
-
-  build-relink-1-0-0:
-    name: Build and Push Relink 1.0.0 Docker Images
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
-    env:
-      RETRY_TIMES: 3
-      RETRY_DELAY: 30
-
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-
-    - name: Log in to GitHub Container Registry
-      uses: docker/login-action@v3
-      with:
-        registry: ghcr.io
-        username: ${{ github.actor }}
-        password: ${{ secrets.GHCR_TOKEN }}
-
-    - name: Build and Push Relink 1.0.0 image
-      uses: docker/build-push-action@v5
-      with:
-        context: ./relink-1.0.0
-        push: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
-        tags: |
-          ghcr.io/bigbio/relink:1.0.0
-          ghcr.io/bigbio/relink:latest
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-        provenance: false
-
-    - name: Set up Singularity
-      if: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
-      uses: eWaterCycle/setup-singularity@v7
-      with:
-        singularity-version: 3.8.7
-
-    - name: Pull Docker image for Singularity conversion
-      if: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
-      run: |
-        # Pull the Docker image from GitHub Container Registry
-        docker pull ghcr.io/bigbio/relink:1.0.0
-        # Save the Docker image to a tar file
-        docker save ghcr.io/bigbio/relink:1.0.0 -o relink-1.0.0.tar
-
-    - name: Convert Docker image to Singularity
-      if: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
-      run: |
-        # Convert Docker tar to Singularity SIF
-        singularity build relink-1.0.0.sif docker-archive://relink-1.0.0.tar
-        # Verify the SIF file exists
-        ls -la relink-1.0.0.sif
-
-    - name: Login and Deploy Container
-      if: (github.event_name != 'pull_request')
-      env:
-        IS_RELEASE: ${{ github.event_name == 'release' }}
-      run: |
-        echo ${{ secrets.GHCR_TOKEN }} | singularity remote login -u ${{ secrets.GHCR_USERNAME }} --password-stdin oras://ghcr.io
-        
-        # Push with version tag
-        singularity push relink-1.0.0.sif oras://ghcr.io/bigbio/relink-sif:1.0.0
-        
-        # If this is a release event, also tag as latest
-        if [[ "${{ env.IS_RELEASE }}" == "true" || "${{ github.event_name }}" == "release" ]]; then
-          singularity push relink-1.0.0.sif oras://ghcr.io/bigbio/relink-sif:latest
-        fi
-
-    - name: Notify on success
-      if: success()
-      run: |
-        echo "::notice::Successfully built and pushed Relink 1.0.0 Docker and Singularity images to ghcr.io/bigbio"
-
-    - name: Notify on failure
-      if: failure()
-      run: |
-        echo "::error::Failed to build or push Relink 1.0.0 images. Check the logs for details."
-
-  sync-openms:
-    name: Sync OpenMS Containers
-    needs: [build-diann-2-2-0, build-diann-2-1-0, build-diann-2-0, build-diann-1-9-2, build-diann-1-8-1, build-relink-1-0-0]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
-    env:
-      OPENMS_VERSION: "2025.04.14"  # Manually defined version for OpenMS
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GitHub Container Registry
+      - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GHCR_TOKEN }}
 
-      - name: Pull OpenMS Docker container
-        id: pull_docker
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./${{ matrix.context }}
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: |
+            ${{ matrix.tag }}
+            ${{ matrix.extra_tags }}
+          cache-from: type=gha,scope=${{ matrix.context }}
+          cache-to: type=gha,scope=${{ matrix.context }},mode=max
+          provenance: false
+
+      - name: Convert to Singularity and push
+        if: github.event_name != 'pull_request'
+        run: |
+          # Install Singularity
+          sudo apt-get update && sudo apt-get install -y singularity-container || true
+
+          # Convert Docker → SIF
+          docker save ${{ matrix.tag }} -o image.tar
+          singularity build image.sif docker-archive://image.tar
+
+          # Push SIF to GHCR
+          echo "${{ secrets.GHCR_TOKEN }}" | singularity remote login -u ${{ secrets.GHCR_USERNAME }} --password-stdin oras://ghcr.io
+          singularity push image.sif oras://ghcr.io/bigbio/${{ matrix.sif }}
+
+          # Push latest SIF tag on release
+          if [[ "${{ github.event_name }}" == "release" && -n "${{ matrix.extra_tags }}" ]]; then
+            SIF_LATEST=$(echo "${{ matrix.sif }}" | sed 's/:[^:]*$/:latest/')
+            singularity push image.sif oras://ghcr.io/bigbio/$SIF_LATEST
+          fi
+
+  # ── Sync OpenMS containers ─────────────────────────────────────────────
+  sync-openms:
+    name: Sync OpenMS Containers
+    needs: build
+    if: always() && (github.event_name == 'release' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      OPENMS_VERSION: "2025.04.14"
+
+    steps:
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Pull, tag, and push OpenMS Docker
         uses: nick-fields/retry@v2
         with:
           timeout_minutes: 10
           max_attempts: 3
           retry_wait_seconds: 30
-          command: docker pull ghcr.io/openms/openms-tools-thirdparty:latest
+          command: |
+            docker pull ghcr.io/openms/openms-tools-thirdparty:latest
+            docker tag ghcr.io/openms/openms-tools-thirdparty:latest ghcr.io/bigbio/openms-tools-thirdparty:${{ env.OPENMS_VERSION }}
+            docker push ghcr.io/bigbio/openms-tools-thirdparty:${{ env.OPENMS_VERSION }}
 
-      - name: Tag and push OpenMS Docker container
-        if: steps.pull_docker.outcome == 'success'
+      - name: Tag as latest on release
+        if: github.event_name == 'release'
         run: |
-          # Set container names using the fixed version
-          SOURCE_CONTAINER="ghcr.io/openms/openms-tools-thirdparty:latest"
-          TARGET_CONTAINER="ghcr.io/bigbio/openms-tools-thirdparty:${{ env.OPENMS_VERSION }}"
-          
-          echo "Tagging as $TARGET_CONTAINER"
-          docker tag $SOURCE_CONTAINER $TARGET_CONTAINER
-          
-          echo "Pushing $TARGET_CONTAINER"
-          docker push $TARGET_CONTAINER || {
-            echo "Failed to push $TARGET_CONTAINER, retrying..."
-            sleep 30
-            docker push $TARGET_CONTAINER
-          }
-          
-          # If this is a release push or a GitHub release event, also tag as latest
-          if [[ "${{ github.event.inputs.push_release }}" == "true" || "${{ github.event_name }}" == "release" ]]; then
-            LATEST_IMAGE="ghcr.io/bigbio/openms-tools-thirdparty:latest"
-            docker tag $SOURCE_CONTAINER $LATEST_IMAGE
-            docker push $LATEST_IMAGE || {
-              echo "Failed to push $LATEST_IMAGE, retrying..."
-              sleep 30
-              docker push $LATEST_IMAGE
-            }
-            echo "Pushed release version as $LATEST_IMAGE"
+          docker tag ghcr.io/openms/openms-tools-thirdparty:latest ghcr.io/bigbio/openms-tools-thirdparty:latest
+          docker push ghcr.io/bigbio/openms-tools-thirdparty:latest
+
+      - name: Sync OpenMS Singularity
+        run: |
+          sudo apt-get update && sudo apt-get install -y singularity-container || true
+          echo "${{ secrets.GHCR_TOKEN }}" | singularity remote login -u ${{ secrets.GHCR_USERNAME }} --password-stdin oras://ghcr.io
+          singularity pull --force openms.sif oras://ghcr.io/openms/openms-tools-thirdparty-sif:latest
+          singularity push openms.sif oras://ghcr.io/bigbio/openms-tools-thirdparty-sif:${{ env.OPENMS_VERSION }}
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            singularity push openms.sif oras://ghcr.io/bigbio/openms-tools-thirdparty-sif:latest
           fi
-
-      - name: Set up Singularity
-        if: success()
-        uses: eWaterCycle/setup-singularity@v7
-        with:
-          singularity-version: 3.8.7
-
-      - name: Configure Singularity for GitHub Container Registry
-        if: success()
-        run: |
-          # Create Singularity remote endpoint for GitHub Container Registry
-          singularity remote add --no-login GithubContainer oras://ghcr.io
-          
-          # Login to GitHub Container Registry
-          echo "${{ secrets.GHCR_TOKEN }}" | singularity remote login -u ${{ secrets.GHCR_USERNAME }} --password-stdin GithubContainer
-
-      - name: Pull OpenMS SIF container
-        id: pull_sif
-        if: success()
-        uses: nick-fields/retry@v2
-        with:
-          timeout_minutes: 15
-          max_attempts: 3
-          retry_wait_seconds: 60
-          command: singularity pull --force openms-tools-thirdparty.sif oras://ghcr.io/openms/openms-tools-thirdparty-sif:latest
-
-      - name: Login and Push OpenMS SIF container
-        if: steps.pull_sif.outcome == 'success'
-        env:
-          keepgoing: true
-        run: |
-          # Login to GitHub Container Registry
-          echo ${{ secrets.GHCR_TOKEN }} | singularity remote login -u ${{ secrets.GHCR_USERNAME }} --password-stdin oras://ghcr.io
-          
-          # Set SIF paths and push with version tag
-          echo "Pushing OpenMS SIF with version tag"
-          singularity push openms-tools-thirdparty.sif oras://ghcr.io/bigbio/openms-tools-thirdparty-sif:${{ env.OPENMS_VERSION }} || {
-            echo "Failed to push with version tag, retrying..."
-            sleep 60
-            singularity push openms-tools-thirdparty.sif oras://ghcr.io/bigbio/openms-tools-thirdparty-sif:${{ env.OPENMS_VERSION }}
-          }
-          
-          # If this is a release push or a GitHub release event, also tag as latest
-          if [[ "${{ github.event.inputs.push_release }}" == "true" || "${{ github.event_name }}" == "release" ]]; then
-            echo "Pushing OpenMS SIF as latest"
-            singularity push openms-tools-thirdparty.sif oras://ghcr.io/bigbio/openms-tools-thirdparty-sif:latest || {
-              echo "Failed to push as latest, retrying..."
-              sleep 60
-              singularity push openms-tools-thirdparty.sif oras://ghcr.io/bigbio/openms-tools-thirdparty-sif:latest
-            }
-          fi
-
-      - name: Notify on success
-        if: success()
-        run: |
-          echo "::notice::Successfully synced OpenMS containers to BigBio repositories"
-
-      - name: Notify on failure
-        if: failure()
-        run: |
-          echo "::error::Failed to sync OpenMS containers. Check the logs for details."

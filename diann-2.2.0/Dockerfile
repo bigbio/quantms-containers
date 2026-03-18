@@ -28,6 +28,7 @@ ENV LANGUAGE=en_US:en
 ENV LC_ALL=en_US.UTF-8
 
 # Download DIA-NN 2.2.0 (release tag: 2.0)
+# Zip contains diann-2.2.0/ at top level, so extract to /usr/
 RUN wget --no-check-certificate https://github.com/vdemichev/DiaNN/releases/download/2.0/DIA-NN-2.2.0-Academia-Linux.zip && \
     unzip DIA-NN-2.2.0-Academia-Linux.zip -d /usr/ && \
     rm DIA-NN-2.2.0-Academia-Linux.zip
@@ -35,8 +36,8 @@ RUN wget --no-check-certificate https://github.com/vdemichev/DiaNN/releases/down
 RUN apt-get remove -y wget unzip && apt-get autoremove -y && apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-RUN chmod +x /usr/diann-2.2.0/diann-linux || chmod +x /usr/diann-2.2.0/diann
-RUN ln -sf /usr/diann-2.2.0/diann-linux /usr/diann-2.2.0/diann 2>/dev/null || true
+RUN chmod +x /usr/diann-2.2.0/diann-linux
+RUN ln -s /usr/diann-2.2.0/diann-linux /usr/diann-2.2.0/diann
 ENV PATH="$PATH:/usr/diann-2.2.0"
 
 WORKDIR /data/

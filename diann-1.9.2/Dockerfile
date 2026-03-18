@@ -28,15 +28,16 @@ ENV LANGUAGE=en_US:en
 ENV LC_ALL=en_US.UTF-8
 
 # Download DIA-NN 1.9.2 (release tag: 1.9.2)
+# Zip contains diann-1.9.2/ at top level, so extract to /usr/
 RUN wget --no-check-certificate https://github.com/vdemichev/DiaNN/releases/download/1.9.2/diann-1.9.2.Linux.zip && \
-    unzip diann-1.9.2.Linux.zip -d /usr/diann-1.9.2/ && \
+    unzip diann-1.9.2.Linux.zip -d /usr/ && \
     rm diann-1.9.2.Linux.zip
 
 RUN apt-get remove -y wget unzip && apt-get autoremove -y && apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-RUN chmod +x /usr/diann-1.9.2/diann-linux || chmod +x /usr/diann-1.9.2/diann
-RUN ln -sf /usr/diann-1.9.2/diann-linux /usr/diann-1.9.2/diann 2>/dev/null || true
+RUN chmod +x /usr/diann-1.9.2/diann-linux
+RUN ln -s /usr/diann-1.9.2/diann-linux /usr/diann-1.9.2/diann
 ENV PATH="$PATH:/usr/diann-1.9.2"
 
 WORKDIR /data/
