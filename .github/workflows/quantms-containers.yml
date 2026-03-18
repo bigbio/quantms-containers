@@ -61,8 +61,8 @@ jobs:
           CHG_RLK: ${{ steps.filter.outputs.relink_1_0_0 }}
         run: |
           DIANN_ALL='[
-            {"context":"diann-2.2.0","tag":"ghcr.io/bigbio/diann:2.2.0","sif":"diann-sif:2.2.0","extra_tags":"","chg":"CHG_220"},
-            {"context":"diann-2.1.0","tag":"ghcr.io/bigbio/diann:2.1.0","sif":"diann-sif:2.1.0","extra_tags":"ghcr.io/bigbio/diann:latest","chg":"CHG_210"},
+            {"context":"diann-2.2.0","tag":"ghcr.io/bigbio/diann:2.2.0","sif":"diann-sif:2.2.0","extra_tags":"ghcr.io/bigbio/diann:latest","chg":"CHG_220"},
+            {"context":"diann-2.1.0","tag":"ghcr.io/bigbio/diann:2.1.0","sif":"diann-sif:2.1.0","extra_tags":"","chg":"CHG_210"},
             {"context":"diann-2.0","tag":"ghcr.io/bigbio/diann:2.0.2","sif":"diann-sif:2.0.2","extra_tags":"","chg":"CHG_20"},
             {"context":"diann-1.9.2","tag":"ghcr.io/bigbio/diann:1.9.2","sif":"diann-sif:1.9.2","extra_tags":"","chg":"CHG_192"},
             {"context":"diann-1.8.1","tag":"ghcr.io/bigbio/diann:1.8.1","sif":"diann-sif:1.8.1","extra_tags":"","chg":"CHG_181"}
