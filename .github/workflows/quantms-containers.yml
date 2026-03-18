@@ -30,7 +30,10 @@ jobs:
     name: Detect changes
     runs-on: ubuntu-latest
     outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      diann_matrix: ${{ steps.set-matrix.outputs.diann_matrix }}
+      relink_matrix: ${{ steps.set-matrix.outputs.relink_matrix }}
+      has_diann: ${{ steps.set-matrix.outputs.has_diann }}
+      has_relink: ${{ steps.set-matrix.outputs.has_relink }}
     steps:
       - uses: actions/checkout@v4
 
@@ -38,7 +41,6 @@ jobs:
         id: filter
         if: github.event_name == 'push' || github.event_name == 'pull_request'
         with:
-          # Also triggers on workflow changes so CI fixes rebuild affected containers
           filters: |
             diann_2_2_0:  [ 'diann-2.2.0/**', '.github/workflows/**' ]
             diann_2_1_0:  [ 'diann-2.1.0/**', '.github/workflows/**' ]
@@ -47,7 +49,7 @@ jobs:
             diann_1_8_1:  [ 'diann-1.8.1/**', '.github/workflows/**' ]
             relink_1_0_0: [ 'relink-1.0.0/**', '.github/workflows/**' ]
 
-      - name: Build matrix from changes
+      - name: Build matrices
         id: set-matrix
         env:
           EVENT: ${{ github.event_name }}
@@ -58,39 +60,46 @@ jobs:
           CHG_181: ${{ steps.filter.outputs.diann_1_8_1 }}
           CHG_RLK: ${{ steps.filter.outputs.relink_1_0_0 }}
         run: |
-          ALL='[
+          DIANN_ALL='[
             {"context":"diann-2.2.0","tag":"ghcr.io/bigbio/diann:2.2.0","sif":"diann-sif:2.2.0","extra_tags":"","chg":"CHG_220"},
             {"context":"diann-2.1.0","tag":"ghcr.io/bigbio/diann:2.1.0","sif":"diann-sif:2.1.0","extra_tags":"ghcr.io/bigbio/diann:latest","chg":"CHG_210"},
             {"context":"diann-2.0","tag":"ghcr.io/bigbio/diann:2.0.2","sif":"diann-sif:2.0.2","extra_tags":"","chg":"CHG_20"},
             {"context":"diann-1.9.2","tag":"ghcr.io/bigbio/diann:1.9.2","sif":"diann-sif:1.9.2","extra_tags":"","chg":"CHG_192"},
-            {"context":"diann-1.8.1","tag":"ghcr.io/bigbio/diann:1.8.1","sif":"diann-sif:1.8.1","extra_tags":"","chg":"CHG_181"},
+            {"context":"diann-1.8.1","tag":"ghcr.io/bigbio/diann:1.8.1","sif":"diann-sif:1.8.1","extra_tags":"","chg":"CHG_181"}
+          ]'
+          RELINK_ALL='[
             {"context":"relink-1.0.0","tag":"ghcr.io/bigbio/relink:1.0.0","sif":"relink-sif:1.0.0","extra_tags":"ghcr.io/bigbio/relink:latest","chg":"CHG_RLK"}
           ]'
 
           if [[ "$EVENT" == "release" || "$EVENT" == "workflow_dispatch" ]]; then
-            RESULT=$(echo "$ALL" | jq -c '[.[] | del(.chg)]')
+            DIANN=$(echo "$DIANN_ALL" | jq -c '[.[] | del(.chg)]')
+            RELINK=$(echo "$RELINK_ALL" | jq -c '[.[] | del(.chg)]')
           else
-            RESULT=$(echo "$ALL" | jq -c --arg c220 "${CHG_220:-false}" --arg c210 "${CHG_210:-false}" \
-              --arg c20 "${CHG_20:-false}" --arg c192 "${CHG_192:-false}" \
-              --arg c181 "${CHG_181:-false}" --arg crlk "${CHG_RLK:-false}" \
+            DIANN=$(echo "$DIANN_ALL" | jq -c --arg c220 "${CHG_220:-false}" --arg c210 "${CHG_210:-false}" \
+              --arg c20 "${CHG_20:-false}" --arg c192 "${CHG_192:-false}" --arg c181 "${CHG_181:-false}" \
               '[.[] | select(
                 (.chg == "CHG_220" and $c220 == "true") or
                 (.chg == "CHG_210" and $c210 == "true") or
                 (.chg == "CHG_20"  and $c20  == "true") or
                 (.chg == "CHG_192" and $c192 == "true") or
-                (.chg == "CHG_181" and $c181 == "true") or
-                (.chg == "CHG_RLK" and $crlk == "true")
+                (.chg == "CHG_181" and $c181 == "true")
               ) | del(.chg)]')
+            RELINK=$(echo "$RELINK_ALL" | jq -c --arg crlk "${CHG_RLK:-false}" \
+              '[.[] | select(.chg == "CHG_RLK" and $crlk == "true") | del(.chg)]')
           fi
 
-          echo "matrix={\"include\":$RESULT}" >> $GITHUB_OUTPUT
-          echo "Built matrix: $RESULT"
+          echo "diann_matrix={\"include\":$DIANN}" >> $GITHUB_OUTPUT
+          echo "relink_matrix={\"include\":$RELINK}" >> $GITHUB_OUTPUT
+          echo "has_diann=$([ "$DIANN" != "[]" ] && echo true || echo false)" >> $GITHUB_OUTPUT
+          echo "has_relink=$([ "$RELINK" != "[]" ] && echo true || echo false)" >> $GITHUB_OUTPUT
+          echo "DIA-NN: $DIANN"
+          echo "Relink: $RELINK"
 
-  # ── Build & push containers (one job per changed Dockerfile) ───────────
-  build:
-    name: "Build ${{ matrix.context }}"
+  # ── Build DIA-NN containers (sequential) ───────────────────────────────
+  build-diann:
+    name: "DIA-NN ${{ matrix.context }}"
     needs: detect-changes
-    if: fromJSON(needs.detect-changes.outputs.matrix).include[0] != null
+    if: needs.detect-changes.outputs.has_diann == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -98,11 +107,10 @@ jobs:
     strategy:
       fail-fast: false
       max-parallel: 1
-      matrix: ${{ fromJSON(needs.detect-changes.outputs.matrix) }}
+      matrix: ${{ fromJSON(needs.detect-changes.outputs.diann_matrix) }}
 
     steps:
       - uses: actions/checkout@v4
-
       - uses: docker/setup-buildx-action@v3
 
       - name: Log in to GHCR
@@ -128,27 +136,73 @@ jobs:
       - name: Convert to Singularity and push
         if: github.event_name != 'pull_request'
         run: |
-          # Install Singularity
           sudo apt-get update && sudo apt-get install -y singularity-container || true
-
-          # Convert Docker → SIF (image is in local daemon via load: true)
           docker save ${{ matrix.tag }} -o image.tar
           singularity build image.sif docker-archive://image.tar
-
-          # Push SIF to GHCR
-          echo "${{ secrets.GHCR_TOKEN }}" | singularity remote login -u ${{ secrets.GHCR_USERNAME }} --password-stdin oras://ghcr.io
+          export SINGULARITY_DOCKER_USERNAME=${{ secrets.GHCR_USERNAME }}
+          export SINGULARITY_DOCKER_PASSWORD=${{ secrets.GHCR_TOKEN }}
           singularity push image.sif oras://ghcr.io/bigbio/${{ matrix.sif }}
-
-          # Push latest SIF tag on release
           if [[ "${{ github.event_name }}" == "release" && -n "${{ matrix.extra_tags }}" ]]; then
             SIF_LATEST=$(echo "${{ matrix.sif }}" | sed 's/:[^:]*$/:latest/')
             singularity push image.sif oras://ghcr.io/bigbio/$SIF_LATEST
           fi
 
-  # ── Sync OpenMS containers ─────────────────────────────────────────────
+  # ── Build Relink containers (after DIA-NN) ─────────────────────────────
+  build-relink:
+    name: "Relink ${{ matrix.context }}"
+    needs: [detect-changes, build-diann]
+    if: always() && needs.detect-changes.outputs.has_relink == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix: ${{ fromJSON(needs.detect-changes.outputs.relink_matrix) }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./${{ matrix.context }}
+          push: ${{ github.event_name != 'pull_request' }}
+          load: true
+          tags: |
+            ${{ matrix.tag }}
+            ${{ matrix.extra_tags }}
+          cache-from: type=gha,scope=${{ matrix.context }}
+          cache-to: type=gha,scope=${{ matrix.context }},mode=max
+          provenance: false
+
+      - name: Convert to Singularity and push
+        if: github.event_name != 'pull_request'
+        run: |
+          sudo apt-get update && sudo apt-get install -y singularity-container || true
+          docker save ${{ matrix.tag }} -o image.tar
+          singularity build image.sif docker-archive://image.tar
+          export SINGULARITY_DOCKER_USERNAME=${{ secrets.GHCR_USERNAME }}
+          export SINGULARITY_DOCKER_PASSWORD=${{ secrets.GHCR_TOKEN }}
+          singularity push image.sif oras://ghcr.io/bigbio/${{ matrix.sif }}
+          if [[ "${{ github.event_name }}" == "release" && -n "${{ matrix.extra_tags }}" ]]; then
+            SIF_LATEST=$(echo "${{ matrix.sif }}" | sed 's/:[^:]*$/:latest/')
+            singularity push image.sif oras://ghcr.io/bigbio/$SIF_LATEST
+          fi
+
+  # ── Sync OpenMS containers (after everything else) ─────────────────────
   sync-openms:
     name: Sync OpenMS Containers
-    needs: build
+    needs: [build-diann, build-relink]
     if: always() && (github.event_name == 'release' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     permissions:
@@ -187,7 +241,8 @@ jobs:
       - name: Sync OpenMS Singularity
         run: |
           sudo apt-get update && sudo apt-get install -y singularity-container || true
-          echo "${{ secrets.GHCR_TOKEN }}" | singularity remote login -u ${{ secrets.GHCR_USERNAME }} --password-stdin oras://ghcr.io
+          export SINGULARITY_DOCKER_USERNAME=${{ secrets.GHCR_USERNAME }}
+          export SINGULARITY_DOCKER_PASSWORD=${{ secrets.GHCR_TOKEN }}
           singularity pull --force openms.sif oras://ghcr.io/openms/openms-tools-thirdparty-sif:latest
           singularity push openms.sif oras://ghcr.io/bigbio/openms-tools-thirdparty-sif:${{ env.OPENMS_VERSION }}
           if [[ "${{ github.event_name }}" == "release" ]]; then
