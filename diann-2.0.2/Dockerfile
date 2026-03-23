@@ -3,7 +3,7 @@ FROM ubuntu:22.04
 LABEL base_image="ubuntu:22.04"
 LABEL version="1"
 LABEL software="diann"
-LABEL software.version="2.0"
+LABEL software.version="2.0.2"
 LABEL about.summary="DIA-NN - a universal software for data-independent acquisition (DIA) proteomics data processing."
 LABEL about.home="https://github.com/vdemichev/DiaNN"
 LABEL about.documentation="https://github.com/vdemichev/DiaNN"
