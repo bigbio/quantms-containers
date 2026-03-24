@@ -34,7 +34,10 @@ jobs:
     strategy:
       matrix:
         version:
+          - 2.2.0
           - 2.1.0
+          - 2.0.2
+          - 1.9.2
           - 1.8.1
     name: Build and Push DiaNN ${{ matrix.version }} Docker Images
     runs-on: ubuntu-latest
