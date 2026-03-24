@@ -2,23 +2,24 @@ name: QuantMS Containers Build and Sync
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
     paths:
-      - 'diann-*/Dockerfile'
-      - '.github/workflows/**'
+      - "diann-*/Dockerfile"
+      - "relink-*/Dockerfile"
+      - ".github/workflows/**"
   release:
     types: [published]
   workflow_dispatch:
     inputs:
       push_images:
-        description: 'Push images to registry'
+        description: "Push images to registry"
         required: false
         default: true
-        type: 'boolean'
+        type: "boolean"
       push_release:
-        description: 'Push as release version'
+        description: "Push as release version"
         required: false
         default: false
         type: boolean
