@@ -206,56 +206,6 @@ jobs:
       run: |
         echo "::error::Failed to build or push DiaNN ${{ matrix.version }} images. Check the logs for details."
 
-  # ── Sync OpenMS containers (after everything else) ─────────────────────
-  sync-openms:
-    name: Sync OpenMS Containers
-    needs: [build-diann, build-relink]
-    if: always() && (github.event_name == 'release' || github.event_name == 'workflow_dispatch')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    env:
-      OPENMS_VERSION: "2025.04.14"
-
-    steps:
-      - uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Pull, tag, and push OpenMS Docker
-        uses: nick-fields/retry@v2
-        with:
-          timeout_minutes: 10
-          max_attempts: 3
-          retry_wait_seconds: 30
-          command: |
-            docker pull ghcr.io/openms/openms-tools-thirdparty:latest
-            docker tag ghcr.io/openms/openms-tools-thirdparty:latest ghcr.io/bigbio/openms-tools-thirdparty:${{ env.OPENMS_VERSION }}
-            docker push ghcr.io/bigbio/openms-tools-thirdparty:${{ env.OPENMS_VERSION }}
-
-      - name: Tag as latest on release
-        if: github.event_name == 'release'
-        run: |
-          docker tag ghcr.io/openms/openms-tools-thirdparty:latest ghcr.io/bigbio/openms-tools-thirdparty:latest
-          docker push ghcr.io/bigbio/openms-tools-thirdparty:latest
-
-      - name: Sync OpenMS Singularity
-        run: |
-          sudo apt-get update && sudo apt-get install -y singularity-container || true
-          export SINGULARITY_DOCKER_USERNAME=${{ github.actor }}
-          export SINGULARITY_DOCKER_PASSWORD=${{ secrets.GITHUB_TOKEN }}
-          singularity pull --force openms.sif oras://ghcr.io/openms/openms-tools-thirdparty-sif:latest
-          singularity push openms.sif oras://ghcr.io/bigbio/openms-tools-thirdparty-sif:${{ env.OPENMS_VERSION }}
-          if [[ "${{ github.event_name }}" == "release" ]]; then
-            singularity push openms.sif oras://ghcr.io/bigbio/openms-tools-thirdparty-sif:latest
-          fi
-
 # ── Build Relink containers (after DIA-NN) ─────────────────────────────
   build-relink:
     name: "Relink ${{ matrix.context }}"
@@ -312,7 +262,7 @@ jobs:
   sync-openms:
     name: Sync OpenMS Containers
     needs: [build-diann, build-relink]
-    if: always() && (github.event_name == 'release' || github.event_name == 'workflow_dispatch')
+    if: always() && (github.event_name == 'release' || github.event_name == 'workflow_dispatch') && github.repository_owner == 'bigbio'
     runs-on: ubuntu-latest
     permissions:
       contents: read
