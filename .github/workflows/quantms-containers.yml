@@ -28,24 +28,93 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository_owner }}/diann
   SINGULARITY_IMAGE_NAME: ${{ github.repository_owner }}/diann-sif
-  
 jobs:
-  build-and-push:
-    strategy:
-      matrix:
-        version:
-          - 2.2.0
-          - 2.1.0
-          - 2.0.2
-          - 1.9.2
-          - 1.8.1
+  # ── Detect which Dockerfiles changed ───────────────────────────────────
+  detect-changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      diann_matrix: ${{ steps.set-matrix.outputs.diann_matrix }}
+      relink_matrix: ${{ steps.set-matrix.outputs.relink_matrix }}
+      has_diann: ${{ steps.set-matrix.outputs.has_diann }}
+      has_relink: ${{ steps.set-matrix.outputs.has_relink }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        if: github.event_name == 'push' || github.event_name == 'pull_request'
+        with:
+          filters: |
+            diann_2_2_0:  [ 'diann-2.2.0/**', '.github/workflows/**' ]
+            diann_2_1_0:  [ 'diann-2.1.0/**', '.github/workflows/**' ]
+            diann_2_0:    [ 'diann-2.0.2/**', '.github/workflows/**' ]
+            diann_1_9_2:  [ 'diann-1.9.2/**', '.github/workflows/**' ]
+            diann_1_8_1:  [ 'diann-1.8.1/**', '.github/workflows/**' ]
+            relink_1_0_0: [ 'relink-1.0.0/**', '.github/workflows/**' ]
+
+      - name: Build matrices
+        id: set-matrix
+        env:
+          EVENT: ${{ github.event_name }}
+          CHG_220: ${{ steps.filter.outputs.diann_2_2_0 }}
+          CHG_210: ${{ steps.filter.outputs.diann_2_1_0 }}
+          CHG_20:  ${{ steps.filter.outputs.diann_2_0 }}
+          CHG_192: ${{ steps.filter.outputs.diann_1_9_2 }}
+          CHG_181: ${{ steps.filter.outputs.diann_1_8_1 }}
+          CHG_RLK: ${{ steps.filter.outputs.relink_1_0_0 }}
+        run: |
+          DIANN_ALL='[
+            {"context":"diann-2.2.0","tag":"ghcr.io/bigbio/diann:2.2.0","sif":"diann-sif:2.2.0","extra_tags":"ghcr.io/bigbio/diann:latest","chg":"CHG_220"},
+            {"context":"diann-2.1.0","tag":"ghcr.io/bigbio/diann:2.1.0","sif":"diann-sif:2.1.0","extra_tags":"","chg":"CHG_210"},
+            {"context":"diann-2.0.2","tag":"ghcr.io/bigbio/diann:2.0.2","sif":"diann-sif:2.0.2","extra_tags":"","chg":"CHG_20"},
+            {"context":"diann-1.9.2","tag":"ghcr.io/bigbio/diann:1.9.2","sif":"diann-sif:1.9.2","extra_tags":"","chg":"CHG_192"},
+            {"context":"diann-1.8.1","tag":"ghcr.io/bigbio/diann:1.8.1","sif":"diann-sif:1.8.1","extra_tags":"","chg":"CHG_181"}
+          ]'
+          RELINK_ALL='[
+            {"context":"relink-1.0.0","tag":"ghcr.io/bigbio/relink:1.0.0","sif":"relink-sif:1.0.0","extra_tags":"ghcr.io/bigbio/relink:latest","chg":"CHG_RLK"}
+          ]'
+
+          if [[ "$EVENT" == "release" || "$EVENT" == "workflow_dispatch" ]]; then
+            DIANN=$(echo "$DIANN_ALL" | jq -c '[.[] | del(.chg)]')
+            RELINK=$(echo "$RELINK_ALL" | jq -c '[.[] | del(.chg)]')
+          else
+            DIANN=$(echo "$DIANN_ALL" | jq -c --arg c220 "${CHG_220:-false}" --arg c210 "${CHG_210:-false}" \
+              --arg c20 "${CHG_20:-false}" --arg c192 "${CHG_192:-false}" --arg c181 "${CHG_181:-false}" \
+              '[.[] | select(
+                (.chg == "CHG_220" and $c220 == "true") or
+                (.chg == "CHG_210" and $c210 == "true") or
+                (.chg == "CHG_20"  and $c20  == "true") or
+                (.chg == "CHG_192" and $c192 == "true") or
+                (.chg == "CHG_181" and $c181 == "true")
+              ) | del(.chg)]')
+            RELINK=$(echo "$RELINK_ALL" | jq -c --arg crlk "${CHG_RLK:-false}" \
+              '[.[] | select(.chg == "CHG_RLK" and $crlk == "true") | del(.chg)]')
+          fi
+
+          echo "diann_matrix={\"include\":$DIANN}" >> $GITHUB_OUTPUT
+          echo "relink_matrix={\"include\":$RELINK}" >> $GITHUB_OUTPUT
+          echo "has_diann=$([ "$DIANN" != "[]" ] && echo true || echo false)" >> $GITHUB_OUTPUT
+          echo "has_relink=$([ "$RELINK" != "[]" ] && echo true || echo false)" >> $GITHUB_OUTPUT
+          echo "DIA-NN: $DIANN"
+          echo "Relink: $RELINK"
+
+  # ── Build DIA-NN containers (sequential) ───────────────────────────────
+  build-diann:
     name: Build and Push DiaNN ${{ matrix.version }} Docker Images
+    needs: detect-changes
+    if: needs.detect-changes.outputs.has_diann == 'true'
     runs-on: ubuntu-latest
     permissions:
       packages: write
       contents: read
       attestations: write
       id-token: write
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix: ${{ fromJSON(needs.detect-changes.outputs.diann_matrix) }}
+
 
     env:
       RETRY_TIMES: 3
@@ -136,3 +205,155 @@ jobs:
       if: failure()
       run: |
         echo "::error::Failed to build or push DiaNN ${{ matrix.version }} images. Check the logs for details."
+
+  # ── Sync OpenMS containers (after everything else) ─────────────────────
+  sync-openms:
+    name: Sync OpenMS Containers
+    needs: [build-diann, build-relink]
+    if: always() && (github.event_name == 'release' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      OPENMS_VERSION: "2025.04.14"
+
+    steps:
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull, tag, and push OpenMS Docker
+        uses: nick-fields/retry@v2
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: |
+            docker pull ghcr.io/openms/openms-tools-thirdparty:latest
+            docker tag ghcr.io/openms/openms-tools-thirdparty:latest ghcr.io/bigbio/openms-tools-thirdparty:${{ env.OPENMS_VERSION }}
+            docker push ghcr.io/bigbio/openms-tools-thirdparty:${{ env.OPENMS_VERSION }}
+
+      - name: Tag as latest on release
+        if: github.event_name == 'release'
+        run: |
+          docker tag ghcr.io/openms/openms-tools-thirdparty:latest ghcr.io/bigbio/openms-tools-thirdparty:latest
+          docker push ghcr.io/bigbio/openms-tools-thirdparty:latest
+
+      - name: Sync OpenMS Singularity
+        run: |
+          sudo apt-get update && sudo apt-get install -y singularity-container || true
+          export SINGULARITY_DOCKER_USERNAME=${{ github.actor }}
+          export SINGULARITY_DOCKER_PASSWORD=${{ secrets.GITHUB_TOKEN }}
+          singularity pull --force openms.sif oras://ghcr.io/openms/openms-tools-thirdparty-sif:latest
+          singularity push openms.sif oras://ghcr.io/bigbio/openms-tools-thirdparty-sif:${{ env.OPENMS_VERSION }}
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            singularity push openms.sif oras://ghcr.io/bigbio/openms-tools-thirdparty-sif:latest
+          fi
+
+# ── Build Relink containers (after DIA-NN) ─────────────────────────────
+  build-relink:
+    name: "Relink ${{ matrix.context }}"
+    needs: [detect-changes, build-diann]
+    if: always() && needs.detect-changes.outputs.has_relink == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix: ${{ fromJSON(needs.detect-changes.outputs.relink_matrix) }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./${{ matrix.context }}
+          push: ${{ github.event_name != 'pull_request' }}
+          load: true
+          tags: |
+            ${{ matrix.tag }}
+            ${{ matrix.extra_tags }}
+          cache-from: type=gha,scope=${{ matrix.context }}
+          cache-to: type=gha,scope=${{ matrix.context }},mode=max
+          provenance: false
+
+      - name: Convert to Singularity and push
+        if: github.event_name != 'pull_request'
+        run: |
+          sudo apt-get update && sudo apt-get install -y singularity-container || true
+          docker save ${{ matrix.tag }} -o image.tar
+          singularity build image.sif docker-archive://image.tar
+          export SINGULARITY_DOCKER_USERNAME=${{ github.actor }}
+          export SINGULARITY_DOCKER_PASSWORD=${{ secrets.GITHUB_TOKEN }}
+          singularity push image.sif oras://ghcr.io/bigbio/${{ matrix.sif }}
+          if [[ "${{ github.event_name }}" == "release" && -n "${{ matrix.extra_tags }}" ]]; then
+            SIF_LATEST=$(echo "${{ matrix.sif }}" | sed 's/:[^:]*$/:latest/')
+            singularity push image.sif oras://ghcr.io/bigbio/$SIF_LATEST
+          fi
+
+  # ── Sync OpenMS containers (after everything else) ─────────────────────
+  sync-openms:
+    name: Sync OpenMS Containers
+    needs: [build-diann, build-relink]
+    if: always() && (github.event_name == 'release' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      OPENMS_VERSION: "2025.04.14"
+
+    steps:
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Pull, tag, and push OpenMS Docker
+        uses: nick-fields/retry@v2
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: |
+            docker pull ghcr.io/openms/openms-tools-thirdparty:latest
+            docker tag ghcr.io/openms/openms-tools-thirdparty:latest ghcr.io/bigbio/openms-tools-thirdparty:${{ env.OPENMS_VERSION }}
+            docker push ghcr.io/bigbio/openms-tools-thirdparty:${{ env.OPENMS_VERSION }}
+
+      - name: Tag as latest on release
+        if: github.event_name == 'release'
+        run: |
+          docker tag ghcr.io/openms/openms-tools-thirdparty:latest ghcr.io/bigbio/openms-tools-thirdparty:latest
+          docker push ghcr.io/bigbio/openms-tools-thirdparty:latest
+
+      - name: Sync OpenMS Singularity
+        run: |
+          sudo apt-get update && sudo apt-get install -y singularity-container || true
+          export SINGULARITY_DOCKER_USERNAME=${{ github.actor }}
+          export SINGULARITY_DOCKER_PASSWORD=${{ secrets.GITHUB_TOKEN }}
+          singularity pull --force openms.sif oras://ghcr.io/openms/openms-tools-thirdparty-sif:latest
+          singularity push openms.sif oras://ghcr.io/bigbio/openms-tools-thirdparty-sif:${{ env.OPENMS_VERSION }}
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            singularity push openms.sif oras://ghcr.io/bigbio/openms-tools-thirdparty-sif:latest
+          fi
