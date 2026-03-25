@@ -65,14 +65,14 @@ jobs:
           CHG_RLK: ${{ steps.filter.outputs.relink_1_0_0 }}
         run: |
           DIANN_ALL='[
-            {"context":"diann-2.2.0","tag":"ghcr.io/bigbio/diann:2.2.0","sif":"diann-sif:2.2.0","extra_tags":"ghcr.io/bigbio/diann:latest","chg":"CHG_220"},
-            {"context":"diann-2.1.0","tag":"ghcr.io/bigbio/diann:2.1.0","sif":"diann-sif:2.1.0","extra_tags":"","chg":"CHG_210"},
-            {"context":"diann-2.0.2","tag":"ghcr.io/bigbio/diann:2.0.2","sif":"diann-sif:2.0.2","extra_tags":"","chg":"CHG_20"},
-            {"context":"diann-1.9.2","tag":"ghcr.io/bigbio/diann:1.9.2","sif":"diann-sif:1.9.2","extra_tags":"","chg":"CHG_192"},
-            {"context":"diann-1.8.1","tag":"ghcr.io/bigbio/diann:1.8.1","sif":"diann-sif:1.8.1","extra_tags":"","chg":"CHG_181"}
+            {"context":"diann-2.2.0","tag":"ghcr.io/${{ github.actor }}/diann:2.2.0","sif":"diann-sif:2.2.0","extra_tags":"ghcr.io/${{ github.actor }}/diann:latest","chg":"CHG_220"},
+            {"context":"diann-2.1.0","tag":"ghcr.io/${{ github.actor }}/diann:2.1.0","sif":"diann-sif:2.1.0","extra_tags":"","chg":"CHG_210"},
+            {"context":"diann-2.0.2","tag":"ghcr.io/${{ github.actor }}/diann:2.0.2","sif":"diann-sif:2.0.2","extra_tags":"","chg":"CHG_20"},
+            {"context":"diann-1.9.2","tag":"ghcr.io/${{ github.actor }}/diann:1.9.2","sif":"diann-sif:1.9.2","extra_tags":"","chg":"CHG_192"},
+            {"context":"diann-1.8.1","tag":"ghcr.io/${{ github.actor }}/diann:1.8.1","sif":"diann-sif:1.8.1","extra_tags":"","chg":"CHG_181"}
           ]'
           RELINK_ALL='[
-            {"context":"relink-1.0.0","tag":"ghcr.io/bigbio/relink:1.0.0","sif":"relink-sif:1.0.0","extra_tags":"ghcr.io/bigbio/relink:latest","chg":"CHG_RLK"}
+            {"context":"relink-1.0.0","tag":"ghcr.io/${{ github.actor }}/relink:1.0.0","sif":"relink-sif:1.0.0","extra_tags":"ghcr.io/${{ github.actor }}/relink:latest","chg":"CHG_RLK"}
           ]'
 
           if [[ "$EVENT" == "release" || "$EVENT" == "workflow_dispatch" ]]; then
@@ -101,7 +101,7 @@ jobs:
 
   # ── Build DIA-NN containers (sequential) ───────────────────────────────
   build-diann:
-    name: Build and Push DiaNN ${{ matrix.version }} Docker Images
+    name: Build and Push DiaNN ${{ matrix.context }} Docker Images
     needs: detect-changes
     if: needs.detect-changes.outputs.has_diann == 'true'
     runs-on: ubuntu-latest
@@ -115,7 +115,6 @@ jobs:
       max-parallel: 1
       matrix: ${{ fromJSON(needs.detect-changes.outputs.diann_matrix) }}
 
-
     env:
       RETRY_TIMES: 3
       RETRY_DELAY: 30
@@ -123,7 +122,6 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
-
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
@@ -147,16 +145,17 @@ jobs:
       id: date
       run: echo "DATE_TAG=$(date +'%Y.%m.%d')" >> $GITHUB_OUTPUT
 
-    - name: Build and Push DiaNN ${{ matrix.version }} image (Latest)
+    - name: Build and Push DiaNN ${{ matrix.context }} image
       uses: docker/build-push-action@v5
       with:
-        context: ./diann-${{ matrix.version }}
+        context: ./diann-${{ matrix.context }}
         push: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
+        load: true
         tags: |
-          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.version }}
-          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+          ${{ matrix.tag }}
+          ${{ matrix.extra_tags }}
+        cache-from: type=gha,scope=${{ matrix.context }}
+        cache-to: type=gha,scope=${{ matrix.context }},mode=max
         provenance: false
 
     - name: Set up Singularity
@@ -169,17 +168,17 @@ jobs:
       if: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
       run: |
         # Pull the Docker image from GitHub Container Registry
-        docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.version }}
+        docker pull ${{ matrix.tag }}
         # Save the Docker image to a tar file
-        docker save ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.version }} -o diann-${{ matrix.version }}.tar
+        docker save ${{ matrix.tag }} -o diann-${{ matrix.context }}.tar
 
     - name: Convert Docker image to Singularity
       if: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
       run: |
         # Convert Docker tar to Singularity SIF
-        singularity build diann-${{ matrix.version }}.sif docker-archive://diann-${{ matrix.version }}.tar
+        singularity build diann-${{ matrix.context }}.sif docker-archive://diann-${{ matrix.context }}.tar
         # Verify the SIF file exists
-        ls -la diann-${{ matrix.version }}.sif
+        ls -la diann-${{ matrix.context }}.sif
 
     - name: Login and Deploy Container
       if: (github.event_name != 'pull_request')
@@ -189,22 +188,23 @@ jobs:
         echo ${{ secrets.GITHUB_TOKEN }} | singularity remote login -u ${{ github.actor }} --password-stdin oras://ghcr.io
         
         # Push with version tag
-        singularity push diann-${{ matrix.version }}.sif oras://${{ env.REGISTRY }}/${{ env.SINGULARITY_IMAGE_NAME }}:${{ matrix.version }}
+        singularity push diann-${{ matrix.context }}.sif oras://${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.sif }}
         
         # If this is a release event, also tag as latest
-        if [[ "${{ env.IS_RELEASE }}" == "true" || "${{ github.event_name }}" == "release" ]]; then
-          singularity push diann-${{ matrix.version }}.sif oras://${{ env.REGISTRY }}/${{ env.SINGULARITY_IMAGE_NAME }}:latest
+        if [[ "${{ github.event_name }}" == "release" && -n "${{ matrix.extra_tags }}" ]]; then
+          SIF_LATEST=$(echo "${{ matrix.sif }}" | sed 's/:[^:]*$/:latest/')
+          singularity push diann-${{ matrix.context }}.sif oras://${{ env.REGISTRY }}/${{ github.repository_owner }}/$SIF_LATEST
         fi
 
     - name: Notify on success
       if: success()
       run: |
-        echo "::notice::Successfully built and pushed DiaNN ${{ matrix.version }} Docker and Singularity images to ghcr.io/${{ github.repository_owner }}"
+        echo "::notice::Successfully built and pushed DiaNN ${{ matrix.context }} Docker and Singularity images to ghcr.io/${{ github.repository_owner }}"
 
     - name: Notify on failure
       if: failure()
       run: |
-        echo "::error::Failed to build or push DiaNN ${{ matrix.version }} images. Check the logs for details."
+        echo "::error::Failed to build or push DiaNN ${{ matrix.context }} images. Check the logs for details."
 
 # ── Build Relink containers (after DIA-NN) ─────────────────────────────
   build-relink:
