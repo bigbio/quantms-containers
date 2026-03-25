@@ -106,8 +106,8 @@ jobs:
     if: needs.detect-changes.outputs.has_diann == 'true'
     runs-on: ubuntu-latest
     permissions:
-      packages: write
       contents: read
+      packages: write
       attestations: write
       id-token: write
     strategy:
@@ -210,7 +210,7 @@ jobs:
   build-relink:
     name: "Relink ${{ matrix.context }}"
     needs: [detect-changes, build-diann]
-    if: always() && needs.detect-changes.outputs.has_relink == 'true'
+    if: always() && needs.detect-changes.outputs.has_relink == 'true'&& github.repository_owner == 'bigbio'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -278,7 +278,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GHCR_TOKEN }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Pull, tag, and push OpenMS Docker
         uses: nick-fields/retry@v2
