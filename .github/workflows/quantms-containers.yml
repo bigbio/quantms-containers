@@ -148,7 +148,7 @@ jobs:
     - name: Build and Push DiaNN ${{ matrix.context }} image
       uses: docker/build-push-action@v5
       with:
-        context: ./diann-${{ matrix.context }}
+        context: ./${{ matrix.context }}
         push: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
         load: true
         tags: |
@@ -170,15 +170,15 @@ jobs:
         # Pull the Docker image from GitHub Container Registry
         docker pull ${{ matrix.tag }}
         # Save the Docker image to a tar file
-        docker save ${{ matrix.tag }} -o diann-${{ matrix.context }}.tar
+        docker save ${{ matrix.tag }} -o ${{ matrix.context }}.tar
 
     - name: Convert Docker image to Singularity
       if: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
       run: |
         # Convert Docker tar to Singularity SIF
-        singularity build diann-${{ matrix.context }}.sif docker-archive://diann-${{ matrix.context }}.tar
+        singularity build ${{ matrix.context }}.sif docker-archive://${{ matrix.context }}.tar
         # Verify the SIF file exists
-        ls -la diann-${{ matrix.context }}.sif
+        ls -la ${{ matrix.context }}.sif
 
     - name: Login and Deploy Container
       if: (github.event_name != 'pull_request')
@@ -188,12 +188,12 @@ jobs:
         echo ${{ secrets.GITHUB_TOKEN }} | singularity remote login -u ${{ github.actor }} --password-stdin oras://ghcr.io
         
         # Push with version tag
-        singularity push diann-${{ matrix.context }}.sif oras://${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.sif }}
+        singularity push ${{ matrix.context }}.sif oras://${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.sif }}
         
         # If this is a release event, also tag as latest
         if [[ "${{ github.event_name }}" == "release" && -n "${{ matrix.extra_tags }}" ]]; then
           SIF_LATEST=$(echo "${{ matrix.sif }}" | sed 's/:[^:]*$/:latest/')
-          singularity push diann-${{ matrix.context }}.sif oras://${{ env.REGISTRY }}/${{ github.repository_owner }}/$SIF_LATEST
+          singularity push ${{ matrix.context }}.sif oras://${{ env.REGISTRY }}/${{ github.repository_owner }}/$SIF_LATEST
         fi
 
     - name: Notify on success
