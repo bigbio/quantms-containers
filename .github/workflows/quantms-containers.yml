@@ -23,7 +23,7 @@ on:
         required: false
         default: false
         type: boolean
-        
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository_owner }}/diann
@@ -59,7 +59,7 @@ jobs:
           EVENT: ${{ github.event_name }}
           CHG_220: ${{ steps.filter.outputs.diann_2_2_0 }}
           CHG_210: ${{ steps.filter.outputs.diann_2_1_0 }}
-          CHG_20:  ${{ steps.filter.outputs.diann_2_0 }}
+          CHG_20: ${{ steps.filter.outputs.diann_2_0 }}
           CHG_192: ${{ steps.filter.outputs.diann_1_9_2 }}
           CHG_181: ${{ steps.filter.outputs.diann_1_8_1 }}
           CHG_RLK: ${{ steps.filter.outputs.relink_1_0_0 }}
@@ -120,97 +120,97 @@ jobs:
       RETRY_DELAY: 30
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-    - name: Log in to GitHub Container Registry
-      uses: docker/login-action@v3
-      with:
-        registry: ${{ env.REGISTRY }}
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Extract metadata for Docker
-      id: meta
-      uses: docker/metadata-action@v5
-      with:
-        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-        tags: |
-          type=raw,value=latest,enable={{is_default_branch}}
-          type=raw,value={{date 'YYYY.MM.DD'}}
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value={{date 'YYYY.MM.DD'}}
 
-    - name: Set date tag
-      id: date
-      run: echo "DATE_TAG=$(date +'%Y.%m.%d')" >> $GITHUB_OUTPUT
+      - name: Set date tag
+        id: date
+        run: echo "DATE_TAG=$(date +'%Y.%m.%d')" >> $GITHUB_OUTPUT
 
-    - name: Build and Push DiaNN ${{ matrix.context }} image
-      uses: docker/build-push-action@v5
-      with:
-        context: ./${{ matrix.context }}
-        push: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
-        load: true
-        tags: |
-          ${{ matrix.tag }}
-          ${{ matrix.extra_tags }}
-        cache-from: type=gha,scope=${{ matrix.context }}
-        cache-to: type=gha,scope=${{ matrix.context }},mode=max
-        provenance: false
+      - name: Build and Push DiaNN ${{ matrix.context }} image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./${{ matrix.context }}
+          push: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
+          load: true
+          tags: |
+            ${{ matrix.tag }}
+            ${{ matrix.extra_tags }}
+          cache-from: type=gha,scope=${{ matrix.context }}
+          cache-to: type=gha,scope=${{ matrix.context }},mode=max
+          provenance: false
 
-    - name: Set up Singularity
-      if: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
-      uses: eWaterCycle/setup-singularity@v7
-      with:
-        singularity-version: 3.8.7
+      - name: Set up Singularity
+        if: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
+        uses: eWaterCycle/setup-singularity@v7
+        with:
+          singularity-version: 3.8.7
 
-    - name: Pull Docker image for Singularity conversion
-      if: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
-      run: |
-        # Pull the Docker image from GitHub Container Registry
-        docker pull ${{ matrix.tag }}
-        # Save the Docker image to a tar file
-        docker save ${{ matrix.tag }} -o ${{ matrix.context }}.tar
+      - name: Pull Docker image for Singularity conversion
+        if: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
+        run: |
+          # Pull the Docker image from GitHub Container Registry
+          docker pull ${{ matrix.tag }}
+          # Save the Docker image to a tar file
+          docker save ${{ matrix.tag }} -o ${{ matrix.context }}.tar
 
-    - name: Convert Docker image to Singularity
-      if: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
-      run: |
-        # Convert Docker tar to Singularity SIF
-        singularity build ${{ matrix.context }}.sif docker-archive://${{ matrix.context }}.tar
-        # Verify the SIF file exists
-        ls -la ${{ matrix.context }}.sif
+      - name: Convert Docker image to Singularity
+        if: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
+        run: |
+          # Convert Docker tar to Singularity SIF
+          singularity build ${{ matrix.context }}.sif docker-archive://${{ matrix.context }}.tar
+          # Verify the SIF file exists
+          ls -la ${{ matrix.context }}.sif
 
-    - name: Login and Deploy Container
-      if: (github.event_name != 'pull_request')
-      env:
-        IS_RELEASE: ${{ github.event_name == 'release' }}
-      run: |
-        echo ${{ secrets.GITHUB_TOKEN }} | singularity remote login -u ${{ github.actor }} --password-stdin oras://ghcr.io
-        
-        # Push with version tag
-        singularity push ${{ matrix.context }}.sif oras://${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.sif }}
-        
-        # If this is a release event, also tag as latest
-        if [[ "${{ github.event_name }}" == "release" && -n "${{ matrix.extra_tags }}" ]]; then
-          SIF_LATEST=$(echo "${{ matrix.sif }}" | sed 's/:[^:]*$/:latest/')
-          singularity push ${{ matrix.context }}.sif oras://${{ env.REGISTRY }}/${{ github.repository_owner }}/$SIF_LATEST
-        fi
+      - name: Login and Deploy Container
+        if: (github.event_name != 'pull_request')
+        env:
+          IS_RELEASE: ${{ github.event_name == 'release' }}
+        run: |
+          echo ${{ secrets.GITHUB_TOKEN }} | singularity remote login -u ${{ github.actor }} --password-stdin oras://ghcr.io
 
-    - name: Notify on success
-      if: success()
-      run: |
-        echo "::notice::Successfully built and pushed DiaNN ${{ matrix.context }} Docker and Singularity images to ghcr.io/${{ github.repository_owner }}"
+          # Push with version tag
+          singularity push ${{ matrix.context }}.sif oras://${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.sif }}
 
-    - name: Notify on failure
-      if: failure()
-      run: |
-        echo "::error::Failed to build or push DiaNN ${{ matrix.context }} images. Check the logs for details."
+          # If this is a release event, also tag as latest
+          if [[ "${{ github.event_name }}" == "release" && -n "${{ matrix.extra_tags }}" ]]; then
+            SIF_LATEST=$(echo "${{ matrix.sif }}" | sed 's/:[^:]*$/:latest/')
+            singularity push ${{ matrix.context }}.sif oras://${{ env.REGISTRY }}/${{ github.repository_owner }}/$SIF_LATEST
+          fi
 
-# ── Build Relink containers (after DIA-NN) ─────────────────────────────
+      - name: Notify on success
+        if: success()
+        run: |
+          echo "::notice::Successfully built and pushed DiaNN ${{ matrix.context }} Docker and Singularity images to ghcr.io/${{ github.repository_owner }}"
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "::error::Failed to build or push DiaNN ${{ matrix.context }} images. Check the logs for details."
+
+  # ── Build Relink containers (after DIA-NN) ─────────────────────────────
   build-relink:
     name: "Relink ${{ matrix.context }}"
     needs: [detect-changes, build-diann]
-    if: always() && needs.detect-changes.outputs.has_relink == 'true'&& github.repository_owner == 'bigbio'
+    if: always() && needs.detect-changes.outputs.has_relink == 'true' && github.repository_owner == 'bigbio'
     runs-on: ubuntu-latest
     permissions:
       contents: read
