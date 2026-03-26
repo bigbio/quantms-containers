@@ -82,9 +82,10 @@ jobs:
             DIANN=$(echo "$DIANN_ALL" | jq -c '[.[] | del(.chg)]')
             RELINK=$(echo "$RELINK_ALL" | jq -c '[.[] | del(.chg)]')
           else
-            DIANN=$(echo "$DIANN_ALL" | jq -c --arg c220 "${CHG_220:-false}" --arg c210 "${CHG_210:-false}" \
+            DIANN=$(echo "$DIANN_ALL" | jq -c --arg c232 "${CHG_232:-false}" --arg c220 "${CHG_220:-false}" --arg c210 "${CHG_210:-false}" \
               --arg c20 "${CHG_20:-false}" --arg c192 "${CHG_192:-false}" --arg c181 "${CHG_181:-false}" \
               '[.[] | select(
+                (.chg == "CHG_232" and $c232 == "true") or
                 (.chg == "CHG_220" and $c220 == "true") or
                 (.chg == "CHG_210" and $c210 == "true") or
                 (.chg == "CHG_20"  and $c20  == "true") or
