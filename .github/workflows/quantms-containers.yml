@@ -46,6 +46,7 @@ jobs:
         if: github.event_name == 'push' || github.event_name == 'pull_request'
         with:
           filters: |
+            diann_2_3_2:  [ 'diann-2.3.2/**', '.github/workflows/**' ]
             diann_2_2_0:  [ 'diann-2.2.0/**', '.github/workflows/**' ]
             diann_2_1_0:  [ 'diann-2.1.0/**', '.github/workflows/**' ]
             diann_2_0:    [ 'diann-2.0.2/**', '.github/workflows/**' ]
@@ -57,6 +58,7 @@ jobs:
         id: set-matrix
         env:
           EVENT: ${{ github.event_name }}
+          CHG_232: ${{ steps.filter.outputs.diann_2_3_2 }}
           CHG_220: ${{ steps.filter.outputs.diann_2_2_0 }}
           CHG_210: ${{ steps.filter.outputs.diann_2_1_0 }}
           CHG_20: ${{ steps.filter.outputs.diann_2_0 }}
