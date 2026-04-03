@@ -7,6 +7,7 @@ on:
     branches: ["main"]
     paths:
       - "diann-*/Dockerfile"
+      - "diann-*/**"
       - "relink-*/Dockerfile"
       - ".github/workflows/**"
   release:
@@ -42,6 +43,7 @@ jobs:
         if: github.event_name == 'push' || github.event_name == 'pull_request'
         with:
           filters: |
+            diann_2_3_2:  [ 'diann-2.3.2/**', '.github/workflows/**' ]
             diann_2_2_0:  [ 'diann-2.2.0/**', '.github/workflows/**' ]
             diann_2_1_0:  [ 'diann-2.1.0/**', '.github/workflows/**' ]
             diann_2_0:    [ 'diann-2.0.2/**', '.github/workflows/**' ]
@@ -53,6 +55,7 @@ jobs:
         id: set-matrix
         env:
           EVENT: ${{ github.event_name }}
+          CHG_232: ${{ steps.filter.outputs.diann_2_3_2 }}
           CHG_220: ${{ steps.filter.outputs.diann_2_2_0 }}
           CHG_210: ${{ steps.filter.outputs.diann_2_1_0 }}
           CHG_20:  ${{ steps.filter.outputs.diann_2_0 }}
@@ -61,7 +64,8 @@ jobs:
           CHG_RLK: ${{ steps.filter.outputs.relink_1_0_0 }}
         run: |
           DIANN_ALL='[
-            {"context":"diann-2.2.0","tag":"ghcr.io/bigbio/diann:2.2.0","sif":"diann-sif:2.2.0","extra_tags":"ghcr.io/bigbio/diann:latest","chg":"CHG_220"},
+            {"context":"diann-2.3.2","tag":"ghcr.io/bigbio/diann:2.3.2","sif":"diann-sif:2.3.2","extra_tags":"ghcr.io/bigbio/diann:latest","chg":"CHG_232"},
+            {"context":"diann-2.2.0","tag":"ghcr.io/bigbio/diann:2.2.0","sif":"diann-sif:2.2.0","extra_tags":"","chg":"CHG_220"},
             {"context":"diann-2.1.0","tag":"ghcr.io/bigbio/diann:2.1.0","sif":"diann-sif:2.1.0","extra_tags":"","chg":"CHG_210"},
             {"context":"diann-2.0.2","tag":"ghcr.io/bigbio/diann:2.0.2","sif":"diann-sif:2.0.2","extra_tags":"","chg":"CHG_20"},
             {"context":"diann-1.9.2","tag":"ghcr.io/bigbio/diann:1.9.2","sif":"diann-sif:1.9.2","extra_tags":"","chg":"CHG_192"},
@@ -75,9 +79,10 @@ jobs:
             DIANN=$(echo "$DIANN_ALL" | jq -c '[.[] | del(.chg)]')
             RELINK=$(echo "$RELINK_ALL" | jq -c '[.[] | del(.chg)]')
           else
-            DIANN=$(echo "$DIANN_ALL" | jq -c --arg c220 "${CHG_220:-false}" --arg c210 "${CHG_210:-false}" \
+            DIANN=$(echo "$DIANN_ALL" | jq -c --arg c232 "${CHG_232:-false}" --arg c220 "${CHG_220:-false}" --arg c210 "${CHG_210:-false}" \
               --arg c20 "${CHG_20:-false}" --arg c192 "${CHG_192:-false}" --arg c181 "${CHG_181:-false}" \
               '[.[] | select(
+                (.chg == "CHG_232" and $c232 == "true") or
                 (.chg == "CHG_220" and $c220 == "true") or
                 (.chg == "CHG_210" and $c210 == "true") or
                 (.chg == "CHG_20"  and $c20  == "true") or
