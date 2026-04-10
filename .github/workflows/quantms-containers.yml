@@ -27,8 +27,6 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/diann
-  SINGULARITY_IMAGE_NAME: ${{ github.repository_owner }}/diann-sif
 jobs:
   # ── Detect which Dockerfiles changed ───────────────────────────────────
   detect-changes:
@@ -118,10 +116,6 @@ jobs:
       max-parallel: 1
       matrix: ${{ fromJSON(needs.detect-changes.outputs.diann_matrix) }}
 
-    env:
-      RETRY_TIMES: 3
-      RETRY_DELAY: 30
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -135,24 +129,11 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata for Docker
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=raw,value={{date 'YYYY.MM.DD'}}
-
-      - name: Set date tag
-        id: date
-        run: echo "DATE_TAG=$(date +'%Y.%m.%d')" >> $GITHUB_OUTPUT
-
       - name: Build and Push DiaNN ${{ matrix.context }} image
         uses: docker/build-push-action@v5
         with:
           context: ./${{ matrix.context }}
-          push: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
+          push: ${{ github.event_name != 'pull_request' }}
           load: true
           tags: |
             ${{ matrix.tag }}
@@ -162,21 +143,18 @@ jobs:
           provenance: false
 
       - name: Set up Singularity
-        if: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
+        if: github.event_name != 'pull_request'
         uses: eWaterCycle/setup-singularity@v7
         with:
           singularity-version: 3.8.7
 
-      - name: Pull Docker image for Singularity conversion
-        if: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
+      - name: Save Docker image for Singularity conversion
+        if: github.event_name != 'pull_request'
         run: |
-          # Pull the Docker image from GitHub Container Registry
-          docker pull ${{ matrix.tag }}
-          # Save the Docker image to a tar file
           docker save ${{ matrix.tag }} -o ${{ matrix.context }}.tar
 
       - name: Convert Docker image to Singularity
-        if: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
+        if: github.event_name != 'pull_request'
         run: |
           # Convert Docker tar to Singularity SIF
           singularity build ${{ matrix.context }}.sif docker-archive://${{ matrix.context }}.tar
@@ -184,7 +162,7 @@ jobs:
           ls -la ${{ matrix.context }}.sif
 
       - name: Login and Deploy Container
-        if: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
+        if: github.event_name != 'pull_request'
         run: |
           echo ${{ secrets.GITHUB_TOKEN }} | singularity remote login -u ${{ github.actor }} --password-stdin oras://ghcr.io
 
@@ -229,7 +207,7 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          username: ${{ github.repository_owner }}
+          username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push Docker image
@@ -245,18 +223,24 @@ jobs:
           cache-to: type=gha,scope=${{ matrix.context }},mode=max
           provenance: false
 
+      - name: Set up Singularity
+        if: github.event_name != 'pull_request'
+        uses: eWaterCycle/setup-singularity@v7
+        with:
+          singularity-version: 3.8.7
+
       - name: Convert to Singularity and push
         if: github.event_name != 'pull_request'
         run: |
-          sudo apt-get update && sudo apt-get install -y singularity-container || true
           docker save ${{ matrix.tag }} -o image.tar
           singularity build image.sif docker-archive://image.tar
-          export SINGULARITY_DOCKER_USERNAME=${{ github.actor }}
-          export SINGULARITY_DOCKER_PASSWORD=${{ secrets.GITHUB_TOKEN }}
-          singularity push image.sif oras://ghcr.io/bigbio/${{ matrix.sif }}
+
+          echo ${{ secrets.GITHUB_TOKEN }} | singularity remote login -u ${{ github.actor }} --password-stdin oras://ghcr.io
+
+          singularity push image.sif oras://ghcr.io/${{ github.repository_owner }}/${{ matrix.sif }}
           if [[ "${{ github.event_name }}" == "release" && -n "${{ matrix.extra_tags }}" ]]; then
             SIF_LATEST=$(echo "${{ matrix.sif }}" | sed 's/:[^:]*$/:latest/')
-            singularity push image.sif oras://ghcr.io/bigbio/$SIF_LATEST
+            singularity push image.sif oras://ghcr.io/${{ github.repository_owner }}/$SIF_LATEST
           fi
 
   # ── Sync OpenMS containers (after everything else) ─────────────────────
@@ -278,7 +262,7 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          username: ${{ github.repository_owner }}
+          username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Pull, tag, and push OpenMS Docker
@@ -289,22 +273,26 @@ jobs:
           retry_wait_seconds: 30
           command: |
             docker pull ghcr.io/openms/openms-tools-thirdparty:latest
-            docker tag ghcr.io/openms/openms-tools-thirdparty:latest ghcr.io/bigbio/openms-tools-thirdparty:${{ env.OPENMS_VERSION }}
-            docker push ghcr.io/bigbio/openms-tools-thirdparty:${{ env.OPENMS_VERSION }}
+            docker tag ghcr.io/openms/openms-tools-thirdparty:latest ghcr.io/${{ github.repository_owner }}/openms-tools-thirdparty:${{ env.OPENMS_VERSION }}
+            docker push ghcr.io/${{ github.repository_owner }}/openms-tools-thirdparty:${{ env.OPENMS_VERSION }}
 
       - name: Tag as latest on release
         if: github.event_name == 'release'
         run: |
-          docker tag ghcr.io/openms/openms-tools-thirdparty:latest ghcr.io/bigbio/openms-tools-thirdparty:latest
-          docker push ghcr.io/bigbio/openms-tools-thirdparty:latest
+          docker tag ghcr.io/openms/openms-tools-thirdparty:latest ghcr.io/${{ github.repository_owner }}/openms-tools-thirdparty:latest
+          docker push ghcr.io/${{ github.repository_owner }}/openms-tools-thirdparty:latest
+
+      - name: Set up Singularity
+        uses: eWaterCycle/setup-singularity@v7
+        with:
+          singularity-version: 3.8.7
 
       - name: Sync OpenMS Singularity
         run: |
-          sudo apt-get update && sudo apt-get install -y singularity-container || true
-          export SINGULARITY_DOCKER_USERNAME=${{ github.actor }}
-          export SINGULARITY_DOCKER_PASSWORD=${{ secrets.GITHUB_TOKEN }}
+          echo ${{ secrets.GITHUB_TOKEN }} | singularity remote login -u ${{ github.actor }} --password-stdin oras://ghcr.io
+
           singularity pull --force openms.sif oras://ghcr.io/openms/openms-tools-thirdparty-sif:latest
-          singularity push openms.sif oras://ghcr.io/bigbio/openms-tools-thirdparty-sif:${{ env.OPENMS_VERSION }}
+          singularity push openms.sif oras://ghcr.io/${{ github.repository_owner }}/openms-tools-thirdparty-sif:${{ env.OPENMS_VERSION }}
           if [[ "${{ github.event_name }}" == "release" ]]; then
-            singularity push openms.sif oras://ghcr.io/bigbio/openms-tools-thirdparty-sif:latest
+            singularity push openms.sif oras://ghcr.io/${{ github.repository_owner }}/openms-tools-thirdparty-sif:latest
           fi
