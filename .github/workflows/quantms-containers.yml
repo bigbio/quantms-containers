@@ -133,7 +133,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ./${{ matrix.context }}
-          push: ${{ github.event_name != 'pull_request' }}
+          push: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
           load: true
           tags: |
             ${{ matrix.tag }}
@@ -143,18 +143,18 @@ jobs:
           provenance: false
 
       - name: Set up Singularity
-        if: github.event_name != 'pull_request'
+        if: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
         uses: eWaterCycle/setup-singularity@v7
         with:
           singularity-version: 3.8.7
 
       - name: Save Docker image for Singularity conversion
-        if: github.event_name != 'pull_request'
+        if: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
         run: |
           docker save ${{ matrix.tag }} -o ${{ matrix.context }}.tar
 
       - name: Convert Docker image to Singularity
-        if: github.event_name != 'pull_request'
+        if: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
         run: |
           # Convert Docker tar to Singularity SIF
           singularity build ${{ matrix.context }}.sif docker-archive://${{ matrix.context }}.tar
@@ -162,7 +162,7 @@ jobs:
           ls -la ${{ matrix.context }}.sif
 
       - name: Login and Deploy Container
-        if: github.event_name != 'pull_request'
+        if: ${{ (github.event.inputs.push_images == true || github.event.inputs.push_images == '') }}
         run: |
           echo ${{ secrets.GITHUB_TOKEN }} | singularity remote login -u ${{ github.actor }} --password-stdin oras://ghcr.io
 
