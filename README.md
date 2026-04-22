@@ -126,7 +126,7 @@ package individually. Please refer to the
 for more details. See also the gif for details on the biosustain fork (do it for both
 `diann` and `diann-sif` packages):
 
-![GIF about the setting on biosustain fork](assets/quantms_containers_setup.gif)
+[![GIF about the setting on biosustain fork](assets/quantms_containers_setup.gif)](https://youtu.be/B_AWIvtXCAQ)
 
 > Below you then need to replace `bigbio` with your GitHub username or organization name
 > in the container tags.
