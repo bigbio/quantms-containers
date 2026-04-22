@@ -113,6 +113,20 @@ Please note the following license restrictions:
 
 ## Installation & Usage
 
+### Fork repository to get access to private quantms containers
+
+The workflow in `.github/workflows/quantms-containers.yml` is configured to build and push
+DIA-NN containers to the private `ghcr.io/{owner}/diann` registry. To access these 
+containers, which runs the action in your own GitHub organization. If this fails,
+you will need to configure the packages on ghcr.io to allow pushing from 
+the GitHub Actions. This can be configured for the entire organization or for each
+package individually. Please refer to the
+[GitHub documentation](https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility#configuring-access-to-packages-for-your-personal-account) 
+for more details.
+
+> Below you then need to replace `bigbio` with your GitHub username or organization name
+> in the container tags.
+
 ### Using Pre-built Docker Images
 
 ```bash
