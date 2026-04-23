@@ -49,16 +49,17 @@ The Relink container provides a complete crosslinking mass spectrometry analysis
 | ------------ | ------- | --------------------------------------- |
 | xiSEARCH     | 1.8.11  | Crosslink identification search engine  |
 | xiFDR        | 2.3.10  | FDR estimation for crosslinked peptides |
-| Scout        | 2.0.0   | Crosslink analysis tool                 |
+| Scout        | 2.1.0   | Crosslink analysis tool                 |
+| xi-mzidentml-converter | latest | mzIdentML parsing package (CLI: `process_dataset`) |
 | pyOpenMS     | latest  | Python bindings for OpenMS              |
 | .NET Runtime | 9.0     | Required by Scout                       |
 | Java JRE     | 21      | Required by xiSEARCH and xiFDR          |
 
 | Container Type | Tag    | URL                                      |
 | -------------- | ------ | ---------------------------------------- |
-| Docker         | 1.0.0  | `ghcr.io/bigbio/relink:1.0.0`            |
+| Docker         | 1.1.0  | `ghcr.io/bigbio/relink:1.1.0`            |
 | Docker         | latest | `ghcr.io/bigbio/relink:latest`           |
-| Singularity    | 1.0.0  | `oras://ghcr.io/bigbio/relink-sif:1.0.0` |
+| Singularity    | 1.1.0  | `oras://ghcr.io/bigbio/relink-sif:1.1.0` |
 
 ```bash
 # Pull Relink Docker image
@@ -70,7 +71,7 @@ docker run -v /path/to/data:/data ghcr.io/bigbio/relink:latest \
 
 # Run Scout
 docker run -v /path/to/data:/data ghcr.io/bigbio/relink:latest \
-  dotnet /opt/scout/Scout_Unix.dll --help
+  /opt/scout/run_scout.sh --help
 ```
 
 ### OpenMS Containers
@@ -105,7 +106,7 @@ Please note the following license restrictions:
 ### Relink Container
 
 - Base Image: `python:3.12-slim` (multi-stage build)
-- Version: 1.0.0
+- Version: 1.1.0
 - Architecture: `amd64`/`x86_64`
 - Includes: Java 21, .NET 9.0, Python 3.12, pyOpenMS, polars, pandas
 
@@ -154,7 +155,7 @@ docker pull ghcr.io/bigbio/openms-tools-thirdparty:latest
 cd diann-2.1.0/ && docker build -t diann:2.1.0 .
 
 # Build Relink
-cd relink-1.0.0/ && docker build -t relink:1.0.0 .
+cd relink-1.1.0/ && docker build -t relink:1.1.0 .
 ```
 
 ### Basic Usage
@@ -191,7 +192,7 @@ docker run -v /path/to/data:/data ghcr.io/bigbio/relink:latest \
 
 # Run Scout
 docker run -v /path/to/data:/data ghcr.io/bigbio/relink:latest \
-  dotnet /opt/scout/Scout_Unix.dll [options]
+  /opt/scout/run_scout.sh [options]
 ```
 
 #### OpenMS

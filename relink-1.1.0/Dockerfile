@@ -2,10 +2,10 @@ FROM python:3.12-slim AS build
 
 # Metadata
 LABEL base_image="python:3.12-slim"
-LABEL version="1"
+LABEL version="1.1.0"
 LABEL software="relink"
-LABEL software.version="1.0.0"
-LABEL about.summary="Container for relink pipeline: xiSEARCH, xiFDR, Scout, and Dotnet / Python dependencies for crosslinking mass spectrometry analysis"
+LABEL software.version="1.1.0"
+LABEL about.summary="Container for relink pipeline: xiSEARCH 1.8.11, xiFDR 2.3.10, Scout 2.1.0, xi-mzidentml-converter, and dependencies for crosslinking mass spectrometry analysis"
 LABEL about.home="https://github.com/bigbio/relink"
 LABEL about.documentation="https://github.com/bigbio/relink"
 LABEL about.license="Apache-2.0"
@@ -32,14 +32,17 @@ RUN mkdir -p /opt/xisearch && wget -q \
     cp /opt/xisearch/xiSEARCH_1.8.11/xiSEARCH.jar /opt/xisearch/xiSEARCH.jar && \
     cp /opt/xisearch/xiSEARCH_1.8.11/xiFDR-2.3.10.jar /opt/xisearch/xiFDR.jar
 
-# Install Scout 2.0.0
+# Install Scout 2.1.0
 RUN mkdir -p /opt/scout && wget -q \
-	https://github.com/diogobor/Scout/releases/download/2.0.0/Scout_Linux64.zip \
+	https://github.com/diogobor/Scout/releases/download/2.1.0/Scout_2_1_0_Linux64.zip \
 	-O /tmp/Scout.zip && \
 	unzip /tmp/Scout.zip -d /opt/scout && \
 	rm /tmp/Scout.zip && \
-	mv /opt/scout/Scout_Linux64/* /opt/scout && \
-	rmdir /opt/scout/Scout_Linux64
+	scout_dir="$(find /opt/scout -mindepth 1 -maxdepth 1 -type d ! -name '__MACOSX' | head -n 1)" && \
+	cp -a "${scout_dir}/." /opt/scout/ && \
+	rm -rf "${scout_dir}" /opt/scout/__MACOSX && \
+	printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' 'exec dotnet /opt/scout/Scout_Unix.dll "$@"' > /opt/scout/run_scout.sh && \
+	chmod +x /opt/scout/run_scout.sh
 
 FROM python:3.12-slim AS runtime
 
@@ -64,16 +67,17 @@ RUN dpkg -i /tmp/packages-microsoft-prod.deb && \
 # Copy xiSEARCH 1.8.11 and xiFDR from build stage
 COPY --from=build /opt/xisearch /opt/xisearch
 
-# Copy Scout 2.0.0 from build stage
+# Copy Scout 2.1.0 from build stage
 COPY --from=build /opt/scout /opt/scout 
 
 # Set necessary env for scout
 ENV MPFR_PATH=/usr/lib/x86_64-linux-gnu GMP_PATH=/usr/lib/x86_64-linux-gnu
 
-# Install Python packages for mass recalibration
-# Using versions from pycross requirements.txt (pyopenms version left open for pip to resolve)
+# Install Python packages for mass recalibration.
+# xi-mzidentml-converter exposes the `process_dataset` CLI.
 RUN pip install --no-cache-dir \
     pyopenms \
+    xi-mzidentml-converter \
     polars==1.35.1 \
     polars-runtime-32==1.35.1 \
     matplotlib==3.10.7 \
@@ -102,13 +106,16 @@ RUN java -jar /opt/xisearch/xiSEARCH.jar --help 1>/dev/null && echo "xiSEARCH in
     ls -lh /opt/xisearch/*.jar && \
 	set -e; \
     test -s /opt/scout/Scout_Unix.dll; \
+    test -x /opt/scout/run_scout.sh; \
     dotnet --info >/dev/null; \
     test -e /usr/lib/x86_64-linux-gnu/libgmp.so.10; \
     test -e /usr/lib/x86_64-linux-gnu/libmpfr.so.6; \
-    out="$(timeout 5s dotnet /opt/scout/Scout_Unix.dll 2>&1 || true)"; \
+    out="$(timeout 5s /opt/scout/run_scout.sh --help 2>&1 || true)"; \
     echo "$out" | head -n 20; \
     echo "$out" | grep -qvE "It was not possible to find any compatible framework version|Could not execute because the specified command or file was not found|A fatal error was encountered" && \
 	echo "Scout installed" && \
-	ls -lh /opt/scout/Scout_Unix.dll && \
+	ls -lh /opt/scout/Scout_Unix.dll /opt/scout/run_scout.sh && \
+    command -v process_dataset >/dev/null && \
+    python -c "from importlib.metadata import version; print(f'xi-mzidentml-converter {version(\"xi-mzidentml-converter\")}')" && \
     python -c "import pyopenms; print(f'pyopenms {pyopenms.__version__}')" && \
     python -c "import polars; print(f'polars {polars.__version__}')"
