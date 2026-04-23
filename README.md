@@ -155,7 +155,7 @@ docker pull ghcr.io/bigbio/openms-tools-thirdparty:latest
 cd diann-2.1.0/ && docker build -t diann:2.1.0 .
 
 # Build Relink
-cd relink-1.0.0/ && docker build -t relink:1.1.0 .
+cd relink-1.1.0/ && docker build -t relink:1.1.0 .
 ```
 
 ### Basic Usage
