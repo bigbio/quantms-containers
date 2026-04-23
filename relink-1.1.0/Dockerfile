@@ -38,8 +38,9 @@ RUN mkdir -p /opt/scout && wget -q \
 	-O /tmp/Scout.zip && \
 	unzip /tmp/Scout.zip -d /opt/scout && \
 	rm /tmp/Scout.zip && \
-	mv /opt/scout/Scout_Linux64/* /opt/scout && \
-	rmdir /opt/scout/Scout_Linux64 && \
+	scout_dir="$(find /opt/scout -mindepth 1 -maxdepth 1 -type d ! -name '__MACOSX' | head -n 1)" && \
+	cp -a "${scout_dir}/." /opt/scout/ && \
+	rm -rf "${scout_dir}" /opt/scout/__MACOSX && \
 	printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' 'exec dotnet /opt/scout/Scout_Unix.dll "$@"' > /opt/scout/run_scout.sh && \
 	chmod +x /opt/scout/run_scout.sh
 
