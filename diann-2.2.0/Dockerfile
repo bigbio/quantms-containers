@@ -13,11 +13,15 @@ LABEL maintainer="Yasset Perez-Riverol <ypriverol@gmail.com>"
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+# dotnet-sdk-8.0 is required for DIA-NN >= 2.1.0 to read Thermo .raw natively on Linux
+# (DIA-NN bundles Thermo DLLs targeting net8.0 and invokes `dotnet --list-sdks` at startup).
 RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
     unzip \
     libgomp1 \
-    locales && \
+    locales \
+    ca-certificates \
+    dotnet-sdk-8.0 && \
     rm -rf /var/lib/apt/lists/*
 
 RUN locale-gen en_US.UTF-8 && \
@@ -29,7 +33,7 @@ ENV LC_ALL=en_US.UTF-8
 
 # Download DIA-NN 2.2.0 (release tag: 2.0)
 # Zip contains diann-2.2.0/ at top level, so extract to /usr/
-RUN wget --no-check-certificate https://github.com/vdemichev/DiaNN/releases/download/2.0/DIA-NN-2.2.0-Academia-Linux.zip && \
+RUN wget https://github.com/vdemichev/DiaNN/releases/download/2.0/DIA-NN-2.2.0-Academia-Linux.zip && \
     unzip DIA-NN-2.2.0-Academia-Linux.zip -d /usr/ && \
     rm DIA-NN-2.2.0-Academia-Linux.zip
 
