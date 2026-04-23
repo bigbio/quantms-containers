@@ -73,8 +73,8 @@ COPY --from=build /opt/scout /opt/scout
 # Set necessary env for scout
 ENV MPFR_PATH=/usr/lib/x86_64-linux-gnu GMP_PATH=/usr/lib/x86_64-linux-gnu
 
-# Install Python packages for mass recalibration
-# Using versions from pycross requirements.txt (pyopenms version left open for pip to resolve)
+# Install Python packages for mass recalibration.
+# xi-mzidentml-converter exposes the `process_dataset` CLI.
 RUN pip install --no-cache-dir \
     pyopenms \
     xi-mzidentml-converter \
@@ -115,6 +115,7 @@ RUN java -jar /opt/xisearch/xiSEARCH.jar --help 1>/dev/null && echo "xiSEARCH in
     echo "$out" | grep -qvE "It was not possible to find any compatible framework version|Could not execute because the specified command or file was not found|A fatal error was encountered" && \
 	echo "Scout installed" && \
 	ls -lh /opt/scout/Scout_Unix.dll /opt/scout/run_scout.sh && \
-    command -v xi-mzidentml-converter >/dev/null && \
+    command -v process_dataset >/dev/null && \
+    python -c "from importlib.metadata import version; print(f'xi-mzidentml-converter {version(\"xi-mzidentml-converter\")}')" && \
     python -c "import pyopenms; print(f'pyopenms {pyopenms.__version__}')" && \
     python -c "import polars; print(f'polars {polars.__version__}')"

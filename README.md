@@ -50,7 +50,7 @@ The Relink container provides a complete crosslinking mass spectrometry analysis
 | xiSEARCH     | 1.8.11  | Crosslink identification search engine  |
 | xiFDR        | 2.3.10  | FDR estimation for crosslinked peptides |
 | Scout        | 2.1.0   | Crosslink analysis tool                 |
-| xi-mzidentml-converter | latest | mzIdentML export for xiSEARCH results |
+| xi-mzidentml-converter | latest | mzIdentML parsing package (CLI: `process_dataset`) |
 | pyOpenMS     | latest  | Python bindings for OpenMS              |
 | .NET Runtime | 9.0     | Required by Scout                       |
 | Java JRE     | 21      | Required by xiSEARCH and xiFDR          |
@@ -106,7 +106,7 @@ Please note the following license restrictions:
 ### Relink Container
 
 - Base Image: `python:3.12-slim` (multi-stage build)
-- Version: 1.0.0
+- Version: 1.1.0
 - Architecture: `amd64`/`x86_64`
 - Includes: Java 21, .NET 9.0, Python 3.12, pyOpenMS, polars, pandas
 
