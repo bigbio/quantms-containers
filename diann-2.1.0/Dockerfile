@@ -14,12 +14,18 @@ LABEL maintainer="Yasset Perez-Riverol <ypriverol@gmail.com>"
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Update package lists and ensure package versions are up to date, Install necessary packages
+# Update package lists and ensure package versions are up to date, Install necessary packages.
+# dotnet-sdk-8.0 is required for DIA-NN >= 2.1.0 to read Thermo .raw natively on Linux.
+# DIA-NN ships Thermo DLLs targeting net8.0 and probes the environment via
+# `dotnet --list-sdks` at startup; a runtime-only install is NOT sufficient and
+# triggers: "cannot read .raw files, please download and install .NET Runtime 8.0.14 or later".
 RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
     unzip \
     libgomp1 \
-    locales && \
+    locales \
+    ca-certificates \
+    dotnet-sdk-8.0 && \
     rm -rf /var/lib/apt/lists/*
 
 # Configure locale to avoid runtime errors
@@ -32,7 +38,7 @@ ENV LANGUAGE=en_US:en
 ENV LC_ALL=en_US.UTF-8
 
 # Download and install DIA-NN
-RUN wget --no-check-certificate https://github.com/vdemichev/DiaNN/releases/download/2.0/DIA-NN-2.1.0-Academia-Linux.zip && \
+RUN wget https://github.com/vdemichev/DiaNN/releases/download/2.0/DIA-NN-2.1.0-Academia-Linux.zip && \
     unzip DIA-NN-2.1.0-Academia-Linux.zip -d /usr/ && \
     rm DIA-NN-2.1.0-Academia-Linux.zip
 
