@@ -24,13 +24,25 @@ These containerized versions offer:
 
 **Important**: Due to licensing restrictions, DIA-NN containers are not publicly distributed. Users must build these containers locally or have access to the private `ghcr.io/bigbio/diann` registry.
 
-| Version | Directory      | Key Features                           | Container Tag                |
-| ------- | -------------- | -------------------------------------- | ---------------------------- |
-| 1.8.1   | `diann-1.8.1/` | Core DIA-NN, library-free analysis     | `ghcr.io/bigbio/diann:1.8.1` |
-| 1.9.2   | `diann-1.9.2/` | QuantUMS quantification, redesigned NN | `ghcr.io/bigbio/diann:1.9.2` |
-| 2.0.2   | `diann-2.0/`   | Parquet output, proteoform confidence  | `ghcr.io/bigbio/diann:2.0.2` |
-| 2.1.0   | `diann-2.1.0/` | Native .raw on Linux                   | `ghcr.io/bigbio/diann:2.1.0` |
-| 2.2.0   | `diann-2.2.0/` | Latest release                         | `ghcr.io/bigbio/diann:2.2.0` |
+| Version | Directory      | Key Features                                  | Container Tag                |
+| ------- | -------------- | --------------------------------------------- | ---------------------------- |
+| 1.8.1   | `diann-1.8.1/` | Core DIA-NN, library-free analysis            | `ghcr.io/bigbio/diann:1.8.1` |
+| 1.9.2   | `diann-1.9.2/` | QuantUMS quantification, redesigned NN        | `ghcr.io/bigbio/diann:1.9.2` |
+| 2.0.2   | `diann-2.0.2/` | Parquet output, proteoform confidence         | `ghcr.io/bigbio/diann:2.0.2` |
+| 2.1.0   | `diann-2.1.0/` | Native `.raw` on Linux (bundles .NET SDK 8)   | `ghcr.io/bigbio/diann:2.1.0` |
+| 2.2.0   | `diann-2.2.0/` | Native `.raw` on Linux (bundles .NET SDK 8)   | `ghcr.io/bigbio/diann:2.2.0` |
+| 2.3.2   | `diann-2.3.2/` | Native `.raw` on Linux (bundles .NET SDK 8)   | `ghcr.io/bigbio/diann:2.3.2` |
+| 2.5.0   | `diann-2.5.0/` | Native `.raw` on Linux (bundles .NET SDK 8)   | `ghcr.io/bigbio/diann:2.5.0` |
+
+> **Native Thermo `.raw` support (DIA-NN ≥ 2.1.0).** Starting with 2.1.0, DIA-NN
+> can read Thermo `.raw` files directly on Linux via bundled `RawWrapper.dll` /
+> `ThermoFisher.CommonCore.*` libraries (targeting `net8.0`). At startup
+> DIA-NN runs `dotnet --list-sdks` and, if no SDK is found, aborts with
+> `ERROR: cannot read .raw files, please download and install .NET Runtime
+> 8.0.14 or later`. The 2.1.0 / 2.2.0 / 2.3.2 / 2.5.0 images therefore install
+> `dotnet-sdk-8.0` (from Ubuntu 22.04 `jammy-updates`); no extra action is
+> needed. DIA-NN ≤ 2.0.2 does **not** ship the Thermo reader on Linux and
+> still requires external conversion (e.g. ThermoRawFileParser → `.mzML`).
 
 ```bash
 # Build Docker container locally
@@ -99,8 +111,10 @@ Please note the following license restrictions:
 ### DIA-NN Containers
 
 - Base Image: `ubuntu:22.04`
-- Available Versions: 1.8.1, 1.9.2, 2.0.2, 2.1.0, 2.2.0
+- Available Versions: 1.8.1, 1.9.2, 2.0.2, 2.1.0, 2.2.0, 2.3.2, 2.5.0
 - Architecture: `amd64`/`x86_64`
+- .NET SDK 8 (`dotnet-sdk-8.0`) is installed in 2.1.0+ images to enable
+  native Thermo `.raw` reading.
 
 ### Relink Container
 
