@@ -72,13 +72,18 @@ if [[ -z "$LOG" ]]; then
     KEEP_LOG=0  # only retain on failure
 fi
 
-# Make sure mono's stdout/stderr is captured to the log; tee it for live progress.
+# Capture mono's stdout/stderr to the log and tee it for live progress.
+# Use a real pipe (not >(tee ...)) so the script waits for tee to flush before
+# we read $LOG in fail() or remove it on success.
 status=0
+set +e
 /usr/bin/mono "$WIFF_BIN" \
     WIFF "$INPUT" "-$MODE" \
     MZML "$OUTPUT" \
     --singleprecision --nocompression --index --overwrite \
-    > >(tee "$LOG") 2>&1 || status=$?
+    2>&1 | tee "$LOG"
+status=${PIPESTATUS[0]}
+set -e
 
 fail() {
     local msg="$1"
