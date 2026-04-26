@@ -163,7 +163,7 @@ Please note the following license restrictions:
 - Base Image: `sciex/wiffconverter:0.10`
 - Version: 0.10
 - Architecture: `amd64`/`x86_64`
-- Includes: Mono runtime, `OneOmics.WiffConverter.exe`, `wiff-to-mzml` wrapper
+- Includes: Mono runtime, `OneOmics.WiffConverter.exe`, `convert` wrapper
 
 ## Installation & Usage
 
