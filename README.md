@@ -9,6 +9,7 @@ This repository provides containerized versions of popular proteomics tools:
 - [DIA-NN](https://github.com/vdemichev/DiaNN): A powerful software solution for analyzing DIA proteomics data
 - [Relink](https://github.com/bigbio/relink): Crosslinking mass spectrometry analysis pipeline (xiSEARCH, xiFDR, Scout)
 - [OpenMS](https://www.openms.de/): A versatile open-source software for mass spectrometry data analysis
+- [WiffConverter](https://hub.docker.com/r/sciex/wiffconverter): SCIEX `.wiff` / `.wiff.scan` to indexed `.mzML` conversion via the bundled `OneOmics.WiffConverter` .NET assembly
 
 These containerized versions offer:
 
@@ -85,6 +86,34 @@ docker run -v /path/to/data:/data ghcr.io/bigbio/relink:latest \
   dotnet /opt/scout/Scout_Unix.dll --help
 ```
 
+### WiffConverter Container
+
+The WiffConverter container wraps the upstream [`sciex/wiffconverter`](https://hub.docker.com/r/sciex/wiffconverter) image (bundles Mono + `OneOmics.WiffConverter.exe`) and adds a small `convert` CLI on `PATH`. It is used by [quantmsdiann](https://github.com/bigbio/quantmsdiann) to ingest AbSciex data natively (`.wiff` + companion `.wiff.scan` → indexed `.mzML` in one step, no separate indexing pass). The output is always an `indexedmzML` (the converter is invoked with `--index`).
+
+| Container Type | Tag  | URL                                           |
+| -------------- | ---- | --------------------------------------------- |
+| Docker         | 0.10 | `ghcr.io/bigbio/wiffconverter:0.10`           |
+| Singularity    | 0.10 | `oras://ghcr.io/bigbio/wiffconverter-sif:0.10` |
+
+`0.10` tracks the latest tag published by SCIEX on Docker Hub (2019-05-17).
+
+```bash
+# Convert a SCIEX .wiff (with its .wiff.scan next to it) to indexed mzML:
+docker run --rm -v "$PWD:/data" ghcr.io/bigbio/wiffconverter:0.10 \
+    convert --input /data/sample.wiff --output /data/sample.mzML --mode centroid
+
+# Flags:
+#   --input   SCIEX .wiff file (companion .wiff.scan must sit next to it).
+#   --output  Destination indexed mzML file.
+#   --mode    'centroid' (default) or 'profile'.
+#   --log     Path to keep the converter log (default: only kept on failure).
+```
+
+On failure the wrapper prints a banner with the input/output/mode and the last
+40 lines of the underlying SCIEX converter log, so most issues (missing
+`.wiff.scan`, locked output, unsupported acquisition) are diagnosable from the
+console without re-running.
+
 ### OpenMS Containers
 
 OpenMS containers are publicly available and can be pulled directly:
@@ -105,6 +134,7 @@ Please note the following license restrictions:
 - **DIA-NN**: Custom academic license with restrictions. Please review the [DIA-NN license](diann-2.1.0/LICENSE.txt) before using. No commercial use or cloud deployment without collaboration agreement.
 - **Relink/xiSEARCH/xiFDR/Scout**: Please review the individual tool licenses
 - **OpenMS**: Available under the [BSD 3-Clause License](https://github.com/OpenMS/OpenMS/blob/develop/LICENSE)
+- **WiffConverter**: Proprietary SCIEX redistributable (via the public `sciex/wiffconverter` Docker Hub image). Users are responsible for complying with SCIEX's terms of use.
 
 ## Technical Specifications
 
@@ -127,6 +157,13 @@ Please note the following license restrictions:
 
 - Sourced from: `ghcr.io/openms/openms-tools-thirdparty`
 - Architecture: `amd64`/`x86_64`
+
+### WiffConverter Container
+
+- Base Image: `sciex/wiffconverter:0.10`
+- Version: 0.10
+- Architecture: `amd64`/`x86_64`
+- Includes: Mono runtime, `OneOmics.WiffConverter.exe`, `convert` wrapper
 
 ## Installation & Usage
 
@@ -231,7 +268,8 @@ This repository includes a GitHub Actions workflow that builds and syncs all con
 
 1. Builds and pushes DIA-NN Docker and Singularity containers (all versions)
 2. Builds and pushes Relink Docker and Singularity containers
-3. Syncs OpenMS containers from the official repository to BigBio
+3. Builds and pushes WiffConverter Docker and Singularity containers
+4. Syncs OpenMS containers from the official repository to BigBio
 
 The workflow is triggered by:
 
