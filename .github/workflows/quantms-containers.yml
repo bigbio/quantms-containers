@@ -9,6 +9,7 @@ on:
       - "diann-*/Dockerfile"
       - "diann-*/**"
       - "relink-*/Dockerfile"
+      - "wiffconverter-*/**"
       - ".github/workflows/**"
   release:
     types: [published]
@@ -35,8 +36,10 @@ jobs:
     outputs:
       diann_matrix: ${{ steps.set-matrix.outputs.diann_matrix }}
       relink_matrix: ${{ steps.set-matrix.outputs.relink_matrix }}
+      wiffconverter_matrix: ${{ steps.set-matrix.outputs.wiffconverter_matrix }}
       has_diann: ${{ steps.set-matrix.outputs.has_diann }}
       has_relink: ${{ steps.set-matrix.outputs.has_relink }}
+      has_wiffconverter: ${{ steps.set-matrix.outputs.has_wiffconverter }}
     steps:
       - uses: actions/checkout@v4
 
@@ -53,6 +56,7 @@ jobs:
             diann_1_9_2:  [ 'diann-1.9.2/**', '.github/workflows/**' ]
             diann_1_8_1:  [ 'diann-1.8.1/**', '.github/workflows/**' ]
             relink_1_0_0: [ 'relink-1.0.0/**', '.github/workflows/**' ]
+            wiffconverter_0_10: [ 'wiffconverter-0.10/**', '.github/workflows/**' ]
 
       - name: Build matrices
         id: set-matrix
@@ -66,6 +70,7 @@ jobs:
           CHG_192: ${{ steps.filter.outputs.diann_1_9_2 }}
           CHG_181: ${{ steps.filter.outputs.diann_1_8_1 }}
           CHG_RLK: ${{ steps.filter.outputs.relink_1_0_0 }}
+          CHG_WC010: ${{ steps.filter.outputs.wiffconverter_0_10 }}
         run: |
           DIANN_ALL='[
             {"context":"diann-2.5.0","tag":"ghcr.io/bigbio/diann:2.5.0","sif":"diann-sif:2.5.0","extra_tags":"ghcr.io/bigbio/diann:latest","chg":"CHG_250"},
@@ -79,10 +84,14 @@ jobs:
           RELINK_ALL='[
             {"context":"relink-1.0.0","tag":"ghcr.io/${{ github.repository_owner }}/relink:1.0.0","sif":"relink-sif:1.0.0","extra_tags":"ghcr.io/${{ github.repository_owner }}/relink:latest","chg":"CHG_RLK"}
           ]'
+          WIFFCONV_ALL='[
+            {"context":"wiffconverter-0.10","tag":"ghcr.io/${{ github.repository_owner }}/wiffconverter:0.10","sif":"wiffconverter-sif:0.10","extra_tags":"ghcr.io/${{ github.repository_owner }}/wiffconverter:latest","chg":"CHG_WC010"}
+          ]'
 
           if [[ "$EVENT" == "release" || "$EVENT" == "workflow_dispatch" ]]; then
             DIANN=$(echo "$DIANN_ALL" | jq -c '[.[] | del(.chg)]')
             RELINK=$(echo "$RELINK_ALL" | jq -c '[.[] | del(.chg)]')
+            WIFFCONV=$(echo "$WIFFCONV_ALL" | jq -c '[.[] | del(.chg)]')
           else
             DIANN=$(echo "$DIANN_ALL" | jq -c --arg c250 "${CHG_250:-false}" --arg c232 "${CHG_232:-false}" --arg c220 "${CHG_220:-false}" --arg c210 "${CHG_210:-false}" \
               --arg c20 "${CHG_20:-false}" --arg c192 "${CHG_192:-false}" --arg c181 "${CHG_181:-false}" \
@@ -97,14 +106,19 @@ jobs:
               ) | del(.chg)]')
             RELINK=$(echo "$RELINK_ALL" | jq -c --arg crlk "${CHG_RLK:-false}" \
               '[.[] | select(.chg == "CHG_RLK" and $crlk == "true") | del(.chg)]')
+            WIFFCONV=$(echo "$WIFFCONV_ALL" | jq -c --arg cwc010 "${CHG_WC010:-false}" \
+              '[.[] | select(.chg == "CHG_WC010" and $cwc010 == "true") | del(.chg)]')
           fi
 
           echo "diann_matrix={\"include\":$DIANN}" >> $GITHUB_OUTPUT
           echo "relink_matrix={\"include\":$RELINK}" >> $GITHUB_OUTPUT
+          echo "wiffconverter_matrix={\"include\":$WIFFCONV}" >> $GITHUB_OUTPUT
           echo "has_diann=$([ "$DIANN" != "[]" ] && echo true || echo false)" >> $GITHUB_OUTPUT
           echo "has_relink=$([ "$RELINK" != "[]" ] && echo true || echo false)" >> $GITHUB_OUTPUT
+          echo "has_wiffconverter=$([ "$WIFFCONV" != "[]" ] && echo true || echo false)" >> $GITHUB_OUTPUT
           echo "DIA-NN: $DIANN"
           echo "Relink: $RELINK"
+          echo "WiffConverter: $WIFFCONV"
 
   # ── Build DIA-NN containers (sequential) ───────────────────────────────
   build-diann:
@@ -247,10 +261,68 @@ jobs:
             singularity push image.sif oras://ghcr.io/${{ github.repository_owner }}/$SIF_LATEST
           fi
 
+  # ── Build WiffConverter container (after Relink) ───────────────────────
+  build-wiffconverter:
+    name: "WiffConverter ${{ matrix.context }}"
+    needs: [detect-changes, build-diann, build-relink]
+    if: always() && needs.detect-changes.outputs.has_wiffconverter == 'true' && github.repository_owner == 'bigbio'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix: ${{ fromJSON(needs.detect-changes.outputs.wiffconverter_matrix) }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry (GHCR)
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./${{ matrix.context }}
+          push: ${{ github.event_name != 'pull_request' }}
+          load: true
+          tags: |
+            ${{ matrix.tag }}
+            ${{ matrix.extra_tags }}
+          cache-from: type=gha,scope=${{ matrix.context }}
+          cache-to: type=gha,scope=${{ matrix.context }},mode=max
+          provenance: false
+
+      - name: Set up Singularity
+        if: github.event_name != 'pull_request'
+        uses: eWaterCycle/setup-singularity@v7
+        with:
+          singularity-version: 3.8.7
+
+      - name: Convert to Singularity and push
+        if: github.event_name != 'pull_request'
+        run: |
+          docker save ${{ matrix.tag }} -o image.tar
+          singularity build image.sif docker-archive://image.tar
+
+          echo ${{ secrets.GITHUB_TOKEN }} | singularity remote login -u ${{ github.actor }} --password-stdin oras://ghcr.io
+
+          singularity push image.sif oras://ghcr.io/${{ github.repository_owner }}/${{ matrix.sif }}
+          if [[ "${{ github.event_name }}" == "release" && -n "${{ matrix.extra_tags }}" ]]; then
+            SIF_LATEST=$(echo "${{ matrix.sif }}" | sed 's/:[^:]*$/:latest/')
+            singularity push image.sif oras://ghcr.io/${{ github.repository_owner }}/$SIF_LATEST
+          fi
+
   # ── Sync OpenMS containers (after everything else) ─────────────────────
   sync-openms:
     name: Sync OpenMS Containers
-    needs: [build-diann, build-relink]
+    needs: [build-diann, build-relink, build-wiffconverter]
     if: always() && (github.event_name == 'release' || github.event_name == 'workflow_dispatch') && github.repository_owner == 'bigbio'
     runs-on: ubuntu-latest
     permissions:
