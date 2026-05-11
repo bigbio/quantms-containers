@@ -71,9 +71,13 @@ COPY --from=build /opt/xisearch /opt/xisearch
 # Copy Scout 2.1.0 from build stage
 COPY --from=build /opt/scout /opt/scout 
 
-# Install the unified `relink` dispatcher (subcommands: scout, xisearch, xifdr, convert).
-COPY relink /usr/local/bin/relink
-RUN chmod +x /usr/local/bin/relink
+# Install per-tool wrappers on PATH: scout, xisearch, xifdr.
+# (`process_dataset` is already on PATH via the xi-mzidentml-converter pip package.)
+# The Java wrappers accept `--java-options "..."` (GATK convention) for passing
+# JVM flags such as -Xmx and -XX:..., which is robust across Nextflow / Singularity
+# quoting layers.
+COPY scout xisearch xifdr /usr/local/bin/
+RUN chmod +x /usr/local/bin/scout /usr/local/bin/xisearch /usr/local/bin/xifdr
 
 # Set necessary env for scout
 ENV MPFR_PATH=/usr/lib/x86_64-linux-gnu GMP_PATH=/usr/lib/x86_64-linux-gnu
@@ -115,21 +119,23 @@ WORKDIR /data/
 
 # Verify installation
 RUN set -e; \
-    test -x /usr/local/bin/relink; \
-    relink help >/dev/null; \
+    for cmd in scout xisearch xifdr process_dataset; do command -v "$cmd" >/dev/null || { echo "$cmd not on PATH"; exit 1; }; done; \
     test -s /opt/scout/Scout_Unix.dll; \
     test -x /opt/scout/run_scout.sh; \
     dotnet --info >/dev/null; \
     test -e /usr/lib/x86_64-linux-gnu/libgmp.so.10; \
     test -e /usr/lib/x86_64-linux-gnu/libmpfr.so.6; \
     ls -lh /opt/xisearch/*.jar /opt/scout/Scout_Unix.dll /opt/scout/run_scout.sh; \
-    relink xisearch --help >/dev/null && echo "xiSEARCH OK"; \
-    out="$(timeout 30s relink scout 2>&1 || true)"; \
+    xisearch --help >/dev/null && echo "xiSEARCH OK"; \
+    xifdr --help >/dev/null && echo "xiFDR OK"; \
+    process_dataset --help >/dev/null && echo "process_dataset OK"; \
+    xisearch --java-options "-Xmx128m -Dxisearch.test=1" --help >/dev/null && echo "xiSEARCH --java-options OK"; \
+    xifdr --java-options "-Xmx128m" --help >/dev/null && echo "xiFDR --java-options OK"; \
+    out="$(timeout 30s scout 2>&1 || true)"; \
     echo "$out" | head -n 30; \
     echo "$out" | grep -q "INFO: Python:" || { echo "Scout wrapper did not detect Python"; exit 1; }; \
     echo "$out" | grep -qE "It was not possible to find any compatible framework version|Could not execute because the specified command or file was not found|A fatal error was encountered|trying to start process '-" && { echo "Scout startup error"; exit 1; } || true; \
     echo "Scout OK"; \
-    relink convert --help >/dev/null && echo "process_dataset OK"; \
     python -c "from importlib.metadata import version; print(f'xi-mzidentml-converter {version(\"xi-mzidentml-converter\")}')"; \
     python -c "import pyopenms; print(f'pyopenms {pyopenms.__version__}')"; \
     python -c "import polars; print(f'polars {polars.__version__}')"

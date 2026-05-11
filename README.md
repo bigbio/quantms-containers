@@ -74,33 +74,60 @@ The Relink container provides a complete crosslinking mass spectrometry analysis
 | Docker         | latest | `ghcr.io/bigbio/relink:latest`           |
 | Singularity    | 1.1.0  | `oras://ghcr.io/bigbio/relink-sif:1.1.0` |
 
-All bundled tools are exposed through a single `relink` dispatcher on `PATH`:
+All bundled tools are exposed directly on `PATH`:
 
-```
-relink scout    [args...]   Scout (cleavable XL-MS search)
-relink xisearch [args...]   xiSEARCH
-relink xifdr    [args...]   xiFDR
-relink convert  [args...]   xi-mzidentml-converter (process_dataset)
-relink help                 Show usage
-```
+| Command           | Tool                                                          |
+| ----------------- | ------------------------------------------------------------- |
+| `scout`           | Scout (cleavable XL-MS search)                                |
+| `xisearch`        | xiSEARCH                                                      |
+| `xifdr`           | xiFDR                                                         |
+| `process_dataset` | xi-mzidentml-converter (already on PATH from the pip package) |
 
-Arguments after the subcommand are passed through to the underlying tool. The wrapper handles Scout-specific quirks transparently (Python detection, `LD_LIBRARY_PATH` for MPFR/GMP, CSMSL user-data dir).
+The `scout` wrapper handles Scout's startup quirks transparently (Python detection, `LD_LIBRARY_PATH` for MPFR/GMP, CSMSL user-data dir).
+
+#### Passing JVM options to xiSEARCH / xiFDR
+
+Use `--java-options "..."` (GATK convention) to pass JVM flags such as `-Xmx`, `-Xms`, `-XX:...`, or `-D...`. All flags go inside a single space-separated quoted string. This survives the layered quoting in Nextflow / Singularity / Docker pipelines without escape pain. The flag may be repeated to append.
 
 ```bash
-# Pull Relink Docker image
+# Pull the image
 docker pull ghcr.io/bigbio/relink:latest
 
-# Show usage
-docker run --rm ghcr.io/bigbio/relink:latest relink help
-
-# Run Scout end-to-end (mount your data and params under /data)
+# Scout end-to-end (mount data + params under /data)
 docker run --rm -v /path/to/data:/data ghcr.io/bigbio/relink:latest \
-  relink scout -search -no_filter /data/search_params.json /data/filter_params.json
+  scout -search -no_filter /data/search_params.json /data/filter_params.json
 
-# Run xiSEARCH / xiFDR / converter
-docker run --rm -v /path/to/data:/data ghcr.io/bigbio/relink:latest relink xisearch --help
-docker run --rm -v /path/to/data:/data ghcr.io/bigbio/relink:latest relink xifdr --help
-docker run --rm -v /path/to/data:/data ghcr.io/bigbio/relink:latest relink convert --help
+# xiSEARCH with a 16 GB heap
+docker run --rm -v /path/to/data:/data ghcr.io/bigbio/relink:latest \
+  xisearch --java-options "-Xmx16g" \
+           --config=/data/config --peaks=/data/peaks.mgf \
+           --fasta=/data/db.fasta --output=/data/results.csv
+
+# xiFDR with custom heap and G1 GC
+docker run --rm -v /path/to/data:/data ghcr.io/bigbio/relink:latest \
+  xifdr --java-options "-Xmx8g -XX:+UseG1GC" --psmfdr=0.05 /data/results.csv
+
+# xi-mzidentml-converter
+docker run --rm -v /path/to/data:/data ghcr.io/bigbio/relink:latest \
+  process_dataset --help
+```
+
+#### Nextflow
+
+`--java-options` keeps everything on one line — no extra escaping inside the script block:
+
+```groovy
+process XISEARCH {
+    container 'ghcr.io/bigbio/relink:1.1.0'
+    cpus 4
+    memory '16 GB'
+    script:
+    """
+    xisearch --java-options "-Xmx${task.memory.toGiga()}g" \\
+             --config=${config} --peaks=${peaks} --fasta=${fasta} \\
+             --output=xisearch_results.csv
+    """
+}
 ```
 
 For Scout's CLI flags and params-file structure, see https://github.com/diogobor/Scout#26-automation.
@@ -254,20 +281,24 @@ Please check [quantmsdiann documentation](https://github.com/bigbio/quantmsdiann
 
 #### Relink
 
-All tools are dispatched through the `relink` CLI on `PATH`:
+Tools are exposed directly on `PATH` (`scout`, `xisearch`, `xifdr`, `process_dataset`). For the Java-based tools, pass JVM flags via `--java-options "..."` (GATK convention):
 
 ```bash
-# Subcommands: scout, xisearch, xifdr, convert, help
-docker run -v /path/to/data:/data ghcr.io/bigbio/relink:latest relink help
-
 # Scout
 docker run -v /path/to/data:/data ghcr.io/bigbio/relink:latest \
-  relink scout -search -no_filter /data/search_params.json /data/filter_params.json
+  scout -search -no_filter /data/search_params.json /data/filter_params.json
 
-# xiSEARCH / xiFDR / converter
-docker run -v /path/to/data:/data ghcr.io/bigbio/relink:latest relink xisearch [options]
-docker run -v /path/to/data:/data ghcr.io/bigbio/relink:latest relink xifdr    [options]
-docker run -v /path/to/data:/data ghcr.io/bigbio/relink:latest relink convert  [options]
+# xiSEARCH with custom heap
+docker run -v /path/to/data:/data ghcr.io/bigbio/relink:latest \
+  xisearch --java-options "-Xmx16g" --config=/data/config [options]
+
+# xiFDR with custom heap
+docker run -v /path/to/data:/data ghcr.io/bigbio/relink:latest \
+  xifdr --java-options "-Xmx8g" [options]
+
+# xi-mzidentml-converter
+docker run -v /path/to/data:/data ghcr.io/bigbio/relink:latest \
+  process_dataset [options]
 ```
 
 #### OpenMS
