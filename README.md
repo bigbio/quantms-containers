@@ -74,18 +74,36 @@ The Relink container provides a complete crosslinking mass spectrometry analysis
 | Docker         | latest | `ghcr.io/bigbio/relink:latest`           |
 | Singularity    | 1.1.0  | `oras://ghcr.io/bigbio/relink-sif:1.1.0` |
 
+All bundled tools are exposed through a single `relink` dispatcher on `PATH`:
+
+```
+relink scout    [args...]   Scout (cleavable XL-MS search)
+relink xisearch [args...]   xiSEARCH
+relink xifdr    [args...]   xiFDR
+relink convert  [args...]   xi-mzidentml-converter (process_dataset)
+relink help                 Show usage
+```
+
+Arguments after the subcommand are passed through to the underlying tool. The wrapper handles Scout-specific quirks transparently (Python detection, `LD_LIBRARY_PATH` for MPFR/GMP, CSMSL user-data dir).
+
 ```bash
 # Pull Relink Docker image
 docker pull ghcr.io/bigbio/relink:latest
 
-# Run xiSEARCH
-docker run -v /path/to/data:/data ghcr.io/bigbio/relink:latest \
-  java -jar /opt/xisearch/xiSEARCH.jar --help
+# Show usage
+docker run --rm ghcr.io/bigbio/relink:latest relink help
 
-# Run Scout
-docker run -v /path/to/data:/data ghcr.io/bigbio/relink:latest \
-  /opt/scout/run_scout.sh --help
+# Run Scout end-to-end (mount your data and params under /data)
+docker run --rm -v /path/to/data:/data ghcr.io/bigbio/relink:latest \
+  relink scout -search -no_filter /data/search_params.json /data/filter_params.json
+
+# Run xiSEARCH / xiFDR / converter
+docker run --rm -v /path/to/data:/data ghcr.io/bigbio/relink:latest relink xisearch --help
+docker run --rm -v /path/to/data:/data ghcr.io/bigbio/relink:latest relink xifdr --help
+docker run --rm -v /path/to/data:/data ghcr.io/bigbio/relink:latest relink convert --help
 ```
+
+For Scout's CLI flags and params-file structure, see https://github.com/diogobor/Scout#26-automation.
 
 ### WiffConverter Container
 
@@ -236,14 +254,20 @@ Please check [quantmsdiann documentation](https://github.com/bigbio/quantmsdiann
 
 #### Relink
 
-```bash
-# Run xiSEARCH
-docker run -v /path/to/data:/data ghcr.io/bigbio/relink:latest \
-  java -jar /opt/xisearch/xiSEARCH.jar [options]
+All tools are dispatched through the `relink` CLI on `PATH`:
 
-# Run Scout
+```bash
+# Subcommands: scout, xisearch, xifdr, convert, help
+docker run -v /path/to/data:/data ghcr.io/bigbio/relink:latest relink help
+
+# Scout
 docker run -v /path/to/data:/data ghcr.io/bigbio/relink:latest \
-  /opt/scout/run_scout.sh [options]
+  relink scout -search -no_filter /data/search_params.json /data/filter_params.json
+
+# xiSEARCH / xiFDR / converter
+docker run -v /path/to/data:/data ghcr.io/bigbio/relink:latest relink xisearch [options]
+docker run -v /path/to/data:/data ghcr.io/bigbio/relink:latest relink xifdr    [options]
+docker run -v /path/to/data:/data ghcr.io/bigbio/relink:latest relink convert  [options]
 ```
 
 #### OpenMS

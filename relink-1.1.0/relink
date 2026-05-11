@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+    cat <<'EOF'
+relink — unified CLI for the crosslinking MS tools bundled in this container.
+
+Usage:
+  relink scout    [args...]   Run Scout (cleavable XL-MS search; see Scout docs)
+  relink xisearch [args...]   Run xiSEARCH
+  relink xifdr    [args...]   Run xiFDR
+  relink convert  [args...]   Run xi-mzidentml-converter (process_dataset)
+  relink help                 Show this message
+
+Arguments after the subcommand are passed through to the underlying tool.
+Run each tool with --help (or the tool's own help flag) for its arguments.
+
+Scout CLI reference: https://github.com/diogobor/Scout#26-automation
+EOF
+}
+
+cmd="${1:-}"
+case "$cmd" in
+    scout)
+        shift
+        # CSMSL's Protease static ctor writes a defaults file under
+        # $HOME/.config/CSMSL\Proteases.xml on first run and crashes if the parent
+        # dir is missing. Ensure it exists for arbitrary HOME (e.g. Nextflow under
+        # Singularity often remaps the user and HOME).
+        mkdir -p "${HOME:-/root}/.config" 2>/dev/null || true
+        exec /opt/scout/run_scout.sh "$@"
+        ;;
+    xisearch)
+        shift
+        exec java -jar /opt/xisearch/xiSEARCH.jar "$@"
+        ;;
+    xifdr)
+        shift
+        exec java -jar /opt/xisearch/xiFDR.jar "$@"
+        ;;
+    convert)
+        shift
+        exec process_dataset "$@"
+        ;;
+    help|--help|-h)
+        usage
+        ;;
+    "")
+        usage >&2
+        exit 1
+        ;;
+    *)
+        echo "relink: unknown subcommand '$cmd'" >&2
+        echo >&2
+        usage >&2
+        exit 1
+        ;;
+esac

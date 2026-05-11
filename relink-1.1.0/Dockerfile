@@ -41,7 +41,8 @@ RUN mkdir -p /opt/scout && wget -q \
 	scout_dir="$(find /opt/scout -mindepth 1 -maxdepth 1 -type d ! -name '__MACOSX' | head -n 1)" && \
 	cp -a "${scout_dir}/." /opt/scout/ && \
 	rm -rf "${scout_dir}" /opt/scout/__MACOSX && \
-	printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' 'exec dotnet /opt/scout/Scout_Unix.dll "$@"' > /opt/scout/run_scout.sh && \
+	test -s /opt/scout/run_scout.sh && \
+	sed -i 's|^dotnet Scout_Unix.dll|dotnet /opt/scout/Scout_Unix.dll|' /opt/scout/run_scout.sh && \
 	chmod +x /opt/scout/run_scout.sh
 
 FROM python:3.12-slim AS runtime
@@ -70,8 +71,19 @@ COPY --from=build /opt/xisearch /opt/xisearch
 # Copy Scout 2.1.0 from build stage
 COPY --from=build /opt/scout /opt/scout 
 
+# Install the unified `relink` dispatcher (subcommands: scout, xisearch, xifdr, convert).
+COPY relink /usr/local/bin/relink
+RUN chmod +x /usr/local/bin/relink
+
 # Set necessary env for scout
 ENV MPFR_PATH=/usr/lib/x86_64-linux-gnu GMP_PATH=/usr/lib/x86_64-linux-gnu
+
+# CSMSL (used by Scout) computes its user-data path as
+#   $XDG_CONFIG_HOME/CSMSL\Proteases.xml  (literal backslash; the path is Windows-style).
+# On first run its static initializer writes default proteases there. If the parent
+# dir does not exist the init throws TypeInitializationException and Scout aborts at
+# "Preparing database...". Pre-create the dir so the out-of-the-box (root) run works.
+RUN mkdir -p /root/.config
 
 # Install Python packages for mass recalibration.
 # xi-mzidentml-converter exposes the `process_dataset` CLI.
@@ -102,20 +114,22 @@ RUN pip install --no-cache-dir \
 WORKDIR /data/
 
 # Verify installation
-RUN java -jar /opt/xisearch/xiSEARCH.jar --help 1>/dev/null && echo "xiSEARCH installed" && \
-    ls -lh /opt/xisearch/*.jar && \
-	set -e; \
+RUN set -e; \
+    test -x /usr/local/bin/relink; \
+    relink help >/dev/null; \
     test -s /opt/scout/Scout_Unix.dll; \
     test -x /opt/scout/run_scout.sh; \
     dotnet --info >/dev/null; \
     test -e /usr/lib/x86_64-linux-gnu/libgmp.so.10; \
     test -e /usr/lib/x86_64-linux-gnu/libmpfr.so.6; \
-    out="$(timeout 5s /opt/scout/run_scout.sh --help 2>&1 || true)"; \
-    echo "$out" | head -n 20; \
-    echo "$out" | grep -qvE "It was not possible to find any compatible framework version|Could not execute because the specified command or file was not found|A fatal error was encountered" && \
-	echo "Scout installed" && \
-	ls -lh /opt/scout/Scout_Unix.dll /opt/scout/run_scout.sh && \
-    command -v process_dataset >/dev/null && \
-    python -c "from importlib.metadata import version; print(f'xi-mzidentml-converter {version(\"xi-mzidentml-converter\")}')" && \
-    python -c "import pyopenms; print(f'pyopenms {pyopenms.__version__}')" && \
+    ls -lh /opt/xisearch/*.jar /opt/scout/Scout_Unix.dll /opt/scout/run_scout.sh; \
+    relink xisearch --help >/dev/null && echo "xiSEARCH OK"; \
+    out="$(timeout 30s relink scout 2>&1 || true)"; \
+    echo "$out" | head -n 30; \
+    echo "$out" | grep -q "INFO: Python:" || { echo "Scout wrapper did not detect Python"; exit 1; }; \
+    echo "$out" | grep -qE "It was not possible to find any compatible framework version|Could not execute because the specified command or file was not found|A fatal error was encountered|trying to start process '-" && { echo "Scout startup error"; exit 1; } || true; \
+    echo "Scout OK"; \
+    relink convert --help >/dev/null && echo "process_dataset OK"; \
+    python -c "from importlib.metadata import version; print(f'xi-mzidentml-converter {version(\"xi-mzidentml-converter\")}')"; \
+    python -c "import pyopenms; print(f'pyopenms {pyopenms.__version__}')"; \
     python -c "import polars; print(f'polars {polars.__version__}')"
