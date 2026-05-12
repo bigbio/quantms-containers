@@ -42,7 +42,7 @@ RUN mkdir -p /opt/scout && wget -q \
 	cp -a "${scout_dir}/." /opt/scout/ && \
 	rm -rf "${scout_dir}" /opt/scout/__MACOSX && \
 	test -s /opt/scout/run_scout.sh && \
-	sed -i 's|^dotnet Scout_Unix.dll|export XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-/tmp/csmsl-config}"; mkdir -p "$XDG_CONFIG_HOME"; dotnet /opt/scout/Scout_Unix.dll|' /opt/scout/run_scout.sh && \
+	sed -i 's|^dotnet Scout_Unix.dll|export XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-/tmp/csmsl-config-$(id -u)}"; mkdir -p "$XDG_CONFIG_HOME"; dotnet /opt/scout/Scout_Unix.dll|' /opt/scout/run_scout.sh && \
 	chmod +x /opt/scout/run_scout.sh && \
 	chmod -R a+rX /opt/scout
 
@@ -142,16 +142,27 @@ RUN set -e; \
     echo "$out" | grep -qE "It was not possible to find any compatible framework version|Could not execute because the specified command or file was not found|A fatal error was encountered|trying to start process '-" && { echo "Scout startup error"; exit 1; } || true; \
     echo "Scout OK (root)"; \
     # Re-run as a non-root UID with HOME=/root not writable, to reproduce the
-    # Nextflow `docker run -u $(id -u):$(id -g)` environment. Verifies the
-    # XDG_CONFIG_HOME fallback prevents CSMSL's Protease type initializer from
-    # throwing "Unable to prepare the database" before it can even reach
-    # database prep.
+    # Nextflow `docker run -u $(id -u):$(id -g)` environment. The smoke test
+    # must exercise `-search` so CSMSL's Protease static initializer actually
+    # runs — without args, Scout exits before touching CSMSL and the bug from
+    # PR #15 hid. The XDG_CONFIG_HOME path is UID-namespaced
+    # (`/tmp/csmsl-config-$(id -u)`) so the runtime mkdir always succeeds and
+    # is owned by the caller; a non-namespaced path created at build time by
+    # root would be 0755 and fail with EACCES under the Nextflow UID.
     useradd -M -u 12345 relinkverify; \
-    out2="$(su -s /bin/bash -c 'cd /tmp && HOME=/root timeout 30s /opt/scout/run_scout.sh 2>&1' relinkverify || true)"; \
-    echo "$out2" | head -n 30; \
+    mkdir -p /tmp/scout-verify; \
+    chmod 777 /tmp/scout-verify; \
+    printf '{}\n' > /tmp/scout-verify/filter_params.json; \
+    printf '{"FastaFile":"dummy.fasta","RawPath":".","OutputFolder":"."}\n' > /tmp/scout-verify/search_params.json; \
+    printf '>sp|P00001|TEST_PROTEIN\nMKKKKKKKKKKKKKKKKKK\n' > /tmp/scout-verify/dummy.fasta; \
+    out2="$(su -s /bin/bash -c 'cd /tmp/scout-verify && HOME=/root timeout 60s /opt/scout/run_scout.sh -search -no_filter search_params.json filter_params.json 2>&1' relinkverify || true)"; \
+    echo "$out2" | tail -n 40; \
     echo "$out2" | grep -q "INFO: Python:" || { echo "Scout wrapper failed under non-root UID"; exit 1; }; \
-    echo "$out2" | grep -qE "TypeInitializationException|Unable to prepare the database|System.UnauthorizedAccessException" && { echo "CSMSL/Protease init regression under non-root UID"; exit 1; } || true; \
-    echo "Scout OK (non-root UID + read-only HOME)"; \
+    echo "$out2" | grep -q "INFO: Preparing database" || { echo "Scout did not reach Preparing database stage under non-root UID"; exit 1; }; \
+    echo "$out2" | grep -qE "type initializer for 'CSMSL\\.Proteomics\\.Protease'|at CSMSL\\.Proteomics\\.Protease\\.\\.ctor|System\\.UnauthorizedAccessException.*CSMSL" && { echo "CSMSL/Protease init regression under non-root UID"; exit 1; } || true; \
+    echo "$out2" | grep -q "lines parsed in the fasta DB" || { echo "Scout did not reach FASTA parsing — Protease init may have failed silently"; exit 1; }; \
+    rm -rf /tmp/scout-verify; \
+    echo "Scout OK (non-root UID + -search + read-only HOME)"; \
     python -c "from importlib.metadata import version; print(f'xi-mzidentml-converter {version(\"xi-mzidentml-converter\")}')"; \
     python -c "import pyopenms; print(f'pyopenms {pyopenms.__version__}')"; \
     python -c "import polars; print(f'polars {polars.__version__}')"
