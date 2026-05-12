@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# CSMSL's Protease static ctor writes a defaults file under
-# $HOME/.config/CSMSL\Proteases.xml on first run and crashes if the parent
-# dir is missing. Ensure it exists for arbitrary HOME (e.g. Nextflow under
-# Singularity often remaps the user and HOME).
-mkdir -p "${HOME:-/root}/.config" 2>/dev/null || true
-
 exec /opt/scout/run_scout.sh "$@"

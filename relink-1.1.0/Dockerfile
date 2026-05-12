@@ -42,8 +42,9 @@ RUN mkdir -p /opt/scout && wget -q \
 	cp -a "${scout_dir}/." /opt/scout/ && \
 	rm -rf "${scout_dir}" /opt/scout/__MACOSX && \
 	test -s /opt/scout/run_scout.sh && \
-	sed -i 's|^dotnet Scout_Unix.dll|dotnet /opt/scout/Scout_Unix.dll|' /opt/scout/run_scout.sh && \
-	chmod +x /opt/scout/run_scout.sh
+	sed -i 's|^dotnet Scout_Unix.dll|export XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-/tmp/csmsl-config}"; mkdir -p "$XDG_CONFIG_HOME"; dotnet /opt/scout/Scout_Unix.dll|' /opt/scout/run_scout.sh && \
+	chmod +x /opt/scout/run_scout.sh && \
+	chmod -R a+rX /opt/scout
 
 FROM python:3.12-slim AS runtime
 
@@ -68,8 +69,18 @@ RUN dpkg -i /tmp/packages-microsoft-prod.deb && \
 # Copy xiSEARCH 1.8.11 and xiFDR from build stage
 COPY --from=build /opt/xisearch /opt/xisearch
 
-# Copy Scout 2.1.0 from build stage
-COPY --from=build /opt/scout /opt/scout 
+# Copy Scout 2.1.0 from build stage. The upstream run_scout.sh has already
+# been patched (see the build stage above) to (a) use an absolute dll path
+# and (b) export XDG_CONFIG_HOME to a writable /tmp dir before invoking
+# dotnet. The latter prevents CSMSL's Protease static initializer ("Unable
+# to prepare the database" / TypeInitializationException) from crashing
+# when the container is run with `-u $(id -u):$(id -g)` (as Nextflow does)
+# and HOME (still /root from the image) is not writable for that UID.
+# The build stage also applies `chmod -R a+rX /opt/scout`: the upstream
+# archive ships as 0700/0600, which makes the script and dlls unreadable
+# for non-root UIDs in the Nextflow scenario above (bash would otherwise
+# fail with "Permission denied" before even reaching dotnet).
+COPY --from=build /opt/scout /opt/scout
 
 # Install per-tool wrappers on PATH: scout, xisearch, xifdr.
 # (`process_dataset` is already on PATH via the xi-mzidentml-converter pip package.)
@@ -81,13 +92,6 @@ RUN chmod +x /usr/local/bin/scout /usr/local/bin/xisearch /usr/local/bin/xifdr
 
 # Set necessary env for scout
 ENV MPFR_PATH=/usr/lib/x86_64-linux-gnu GMP_PATH=/usr/lib/x86_64-linux-gnu
-
-# CSMSL (used by Scout) computes its user-data path as
-#   $XDG_CONFIG_HOME/CSMSL\Proteases.xml  (literal backslash; the path is Windows-style).
-# On first run its static initializer writes default proteases there. If the parent
-# dir does not exist the init throws TypeInitializationException and Scout aborts at
-# "Preparing database...". Pre-create the dir so the out-of-the-box (root) run works.
-RUN mkdir -p /root/.config
 
 # Install Python packages for mass recalibration.
 # xi-mzidentml-converter exposes the `process_dataset` CLI.
@@ -122,6 +126,7 @@ RUN set -e; \
     for cmd in scout xisearch xifdr process_dataset; do command -v "$cmd" >/dev/null || { echo "$cmd not on PATH"; exit 1; }; done; \
     test -s /opt/scout/Scout_Unix.dll; \
     test -x /opt/scout/run_scout.sh; \
+    grep -q 'XDG_CONFIG_HOME' /opt/scout/run_scout.sh || { echo "run_scout.sh missing XDG_CONFIG_HOME patch"; exit 1; }; \
     dotnet --info >/dev/null; \
     test -e /usr/lib/x86_64-linux-gnu/libgmp.so.10; \
     test -e /usr/lib/x86_64-linux-gnu/libmpfr.so.6; \
@@ -135,7 +140,18 @@ RUN set -e; \
     echo "$out" | head -n 30; \
     echo "$out" | grep -q "INFO: Python:" || { echo "Scout wrapper did not detect Python"; exit 1; }; \
     echo "$out" | grep -qE "It was not possible to find any compatible framework version|Could not execute because the specified command or file was not found|A fatal error was encountered|trying to start process '-" && { echo "Scout startup error"; exit 1; } || true; \
-    echo "Scout OK"; \
+    echo "Scout OK (root)"; \
+    # Re-run as a non-root UID with HOME=/root not writable, to reproduce the
+    # Nextflow `docker run -u $(id -u):$(id -g)` environment. Verifies the
+    # XDG_CONFIG_HOME fallback prevents CSMSL's Protease type initializer from
+    # throwing "Unable to prepare the database" before it can even reach
+    # database prep.
+    useradd -M -u 12345 relinkverify; \
+    out2="$(su -s /bin/bash -c 'cd /tmp && HOME=/root timeout 30s /opt/scout/run_scout.sh 2>&1' relinkverify || true)"; \
+    echo "$out2" | head -n 30; \
+    echo "$out2" | grep -q "INFO: Python:" || { echo "Scout wrapper failed under non-root UID"; exit 1; }; \
+    echo "$out2" | grep -qE "TypeInitializationException|Unable to prepare the database|System.UnauthorizedAccessException" && { echo "CSMSL/Protease init regression under non-root UID"; exit 1; } || true; \
+    echo "Scout OK (non-root UID + read-only HOME)"; \
     python -c "from importlib.metadata import version; print(f'xi-mzidentml-converter {version(\"xi-mzidentml-converter\")}')"; \
     python -c "import pyopenms; print(f'pyopenms {pyopenms.__version__}')"; \
     python -c "import polars; print(f'polars {polars.__version__}')"
