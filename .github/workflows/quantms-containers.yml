@@ -63,6 +63,7 @@ jobs:
         id: set-matrix
         env:
           EVENT: ${{ github.event_name }}
+          CHG_251: ${{ steps.filter.outputs.diann_2_5_1 }}
           CHG_250: ${{ steps.filter.outputs.diann_2_5_0 }}
           CHG_232: ${{ steps.filter.outputs.diann_2_3_2 }}
           CHG_220: ${{ steps.filter.outputs.diann_2_2_0 }}
