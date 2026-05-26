@@ -73,7 +73,7 @@ jobs:
           CHG_WC010: ${{ steps.filter.outputs.wiffconverter_0_10 }}
         run: |
           DIANN_ALL='[
-            {"context":"diann-2.5.0","tag":"ghcr.io/bigbio/diann:2.5.0","sif":"diann-sif:2.5.0","extra_tags":"ghcr.io/bigbio/diann:latest","chg":"CHG_250"},
+            {"context":"diann-2.5.0","tag":"ghcr.io/${{ github.repository_owner }}/diann:2.5.0","sif":"diann-sif:2.5.0","extra_tags":"ghcr.io/${{ github.repository_owner }}/diann:latest","chg":"CHG_250"},
             {"context":"diann-2.3.2","tag":"ghcr.io/${{ github.repository_owner }}/diann:2.3.2","sif":"diann-sif:2.3.2","extra_tags":"","chg":"CHG_232"},
             {"context":"diann-2.2.0","tag":"ghcr.io/${{ github.repository_owner }}/diann:2.2.0","sif":"diann-sif:2.2.0","extra_tags":"","chg":"CHG_220"},
             {"context":"diann-2.1.0","tag":"ghcr.io/${{ github.repository_owner }}/diann:2.1.0","sif":"diann-sif:2.1.0","extra_tags":"","chg":"CHG_210"},
