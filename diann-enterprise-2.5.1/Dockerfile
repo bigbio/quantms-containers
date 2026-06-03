@@ -12,9 +12,6 @@
 #     DIA-NN-2.5.1-Enterprise-Linux.zip    (provided by you; .gitignored)
 #     diann-license-key.txt                (provided by you; .gitignored)
 #
-# Build with build-diann-enterprise-singularity.sh, which stages those files
-# automatically from /srv/data/diann-enterprise (or $ENTERPRISE_SRC).
-#
 # The license is copied to /usr/diann-2.5.1/ so it sits next to the DIA-NN
 # binary, and is also linked into the root user's XDG data dir, which is one
 # of the locations DIA-NN searches for `diann-license-key.txt` at runtime.

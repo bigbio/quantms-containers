@@ -17,8 +17,7 @@
 # Environment variables:
 #   OUTDIR              Directory for .img files (default: ./singularity-cache)
 #   ENTERPRISE_SRC      Directory holding DIA-NN-<ver>-Enterprise-Linux.zip
-#                       and diann-license-key.txt
-#                       (default: /srv/data/diann-enterprise)
+#                       and diann-license-key.txt (required; no default)
 #   SKIP_DOCKER_BUILD   If 1, skip "docker build" and reuse existing tag
 #   FORCE               If 1, rebuild even if the .img already exists
 #   KEEP_STAGED         If 1, leave the staged zip + license in the build
@@ -33,10 +32,17 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OUTDIR="${OUTDIR:-${REPO_ROOT}/singularity-cache}"
-ENTERPRISE_SRC="${ENTERPRISE_SRC:-/srv/data/diann-enterprise}"
+ENTERPRISE_SRC="${ENTERPRISE_SRC:-}"
 SKIP_DOCKER_BUILD="${SKIP_DOCKER_BUILD:-0}"
 FORCE="${FORCE:-0}"
 KEEP_STAGED="${KEEP_STAGED:-0}"
+
+if [[ -z "${ENTERPRISE_SRC}" ]]; then
+    echo "ERROR: ENTERPRISE_SRC is not set. Point it at the directory that holds" >&2
+    echo "       DIA-NN-<ver>-Enterprise-Linux.zip and diann-license-key.txt, e.g.:" >&2
+    echo "       ENTERPRISE_SRC=/path/to/enterprise $0" >&2
+    exit 1
+fi
 
 ALL_VERSIONS=(2.5.1)
 

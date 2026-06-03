@@ -16,9 +16,10 @@ diann-enterprise-2.5.1/
   diann-license-key.txt
 ```
 
-`build-diann-enterprise-singularity.sh` stages both files from
-`/srv/data/diann-enterprise` (override with `ENTERPRISE_SRC=...`) using
-hardlinks when possible, so it does not duplicate the 360 MB zip on disk.
+`build-diann-enterprise-singularity.sh` stages both files from the directory
+given by `ENTERPRISE_SRC` (the folder that holds the Enterprise zip and your
+license key) using hardlinks when possible, so it does not duplicate the
+360 MB zip on disk.
 
 ## Build
 
