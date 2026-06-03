@@ -56,7 +56,7 @@ jobs:
             diann_2_0:    [ 'diann-2.0.2/**', '.github/workflows/**' ]
             diann_1_9_2:  [ 'diann-1.9.2/**', '.github/workflows/**' ]
             diann_1_8_1:  [ 'diann-1.8.1/**', '.github/workflows/**' ]
-            relink_1_0_0: [ 'relink-1.0.0/**', '.github/workflows/**' ]
+            relink_1_1_0: [ 'relink-1.1.0/**', '.github/workflows/**' ]
             wiffconverter_0_10: [ 'wiffconverter-0.10/**', '.github/workflows/**' ]
 
       - name: Build matrices
@@ -71,7 +71,7 @@ jobs:
           CHG_20: ${{ steps.filter.outputs.diann_2_0 }}
           CHG_192: ${{ steps.filter.outputs.diann_1_9_2 }}
           CHG_181: ${{ steps.filter.outputs.diann_1_8_1 }}
-          CHG_RLK: ${{ steps.filter.outputs.relink_1_0_0 }}
+          CHG_RLK: ${{ steps.filter.outputs.relink_1_1_0 }}
           CHG_WC010: ${{ steps.filter.outputs.wiffconverter_0_10 }}
         run: |
           DIANN_ALL='[
@@ -85,7 +85,7 @@ jobs:
             {"context":"diann-1.8.1","tag":"ghcr.io/${{ github.repository_owner }}/diann:1.8.1","sif":"diann-sif:1.8.1","extra_tags":"","chg":"CHG_181"}
           ]'
           RELINK_ALL='[
-            {"context":"relink-1.0.0","tag":"ghcr.io/${{ github.repository_owner }}/relink:1.0.0","sif":"relink-sif:1.0.0","extra_tags":"ghcr.io/${{ github.repository_owner }}/relink:latest","chg":"CHG_RLK"}
+            {"context":"relink-1.1.0","tag":"ghcr.io/${{ github.repository_owner }}/relink:1.1.0","sif":"relink-sif:1.1.0","extra_tags":"ghcr.io/${{ github.repository_owner }}/relink:latest","chg":"CHG_RLK"}
           ]'
           WIFFCONV_ALL='[
             {"context":"wiffconverter-0.10","tag":"ghcr.io/${{ github.repository_owner }}/wiffconverter:0.10","sif":"wiffconverter-sif:0.10","extra_tags":"ghcr.io/${{ github.repository_owner }}/wiffconverter:latest","chg":"CHG_WC010"}

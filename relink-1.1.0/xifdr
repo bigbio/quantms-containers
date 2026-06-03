@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Pass JVM flags via `--java-options "..."` (GATK convention). All flags go
+# inside a single space-separated quoted string, e.g.
+#   xifdr --java-options "-Xmx8g -XX:+UseG1GC" --psmfdr=0.05 ...
+# May be repeated; later occurrences append.
+
+java_opts=()
+pass_args=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --java-options)
+            if [[ $# -lt 2 ]]; then
+                echo "xifdr: --java-options requires an argument" >&2
+                exit 2
+            fi
+            read -r -a _opts <<< "$2"
+            java_opts+=("${_opts[@]}")
+            shift 2
+            ;;
+        --java-options=*)
+            read -r -a _opts <<< "${1#--java-options=}"
+            java_opts+=("${_opts[@]}")
+            shift
+            ;;
+        *)
+            pass_args+=("$1")
+            shift
+            ;;
+    esac
+done
+
+exec java "${java_opts[@]}" -jar /opt/xisearch/xiFDR.jar "${pass_args[@]}"

@@ -62,29 +62,75 @@ The Relink container provides a complete crosslinking mass spectrometry analysis
 | ------------ | ------- | --------------------------------------- |
 | xiSEARCH     | 1.8.11  | Crosslink identification search engine  |
 | xiFDR        | 2.3.10  | FDR estimation for crosslinked peptides |
-| Scout        | 2.0.0   | Crosslink analysis tool                 |
+| Scout        | 2.1.0   | Crosslink analysis tool                 |
+| xi-mzidentml-converter | latest | mzIdentML parsing package (CLI: `process_dataset`) |
 | pyOpenMS     | latest  | Python bindings for OpenMS              |
 | .NET Runtime | 9.0     | Required by Scout                       |
 | Java JRE     | 21      | Required by xiSEARCH and xiFDR          |
 
 | Container Type | Tag    | URL                                      |
 | -------------- | ------ | ---------------------------------------- |
-| Docker         | 1.0.0  | `ghcr.io/bigbio/relink:1.0.0`            |
+| Docker         | 1.1.0  | `ghcr.io/bigbio/relink:1.1.0`            |
 | Docker         | latest | `ghcr.io/bigbio/relink:latest`           |
-| Singularity    | 1.0.0  | `oras://ghcr.io/bigbio/relink-sif:1.0.0` |
+| Singularity    | 1.1.0  | `oras://ghcr.io/bigbio/relink-sif:1.1.0` |
+
+All bundled tools are exposed directly on `PATH`:
+
+| Command           | Tool                                                          |
+| ----------------- | ------------------------------------------------------------- |
+| `scout`           | Scout (cleavable XL-MS search)                                |
+| `xisearch`        | xiSEARCH                                                      |
+| `xifdr`           | xiFDR                                                         |
+| `process_dataset` | xi-mzidentml-converter (already on PATH from the pip package) |
+
+The `scout` wrapper handles Scout's startup quirks transparently (Python detection, `LD_LIBRARY_PATH` for MPFR/GMP, CSMSL user-data dir).
+
+#### Passing JVM options to xiSEARCH / xiFDR
+
+Use `--java-options "..."` (GATK convention) to pass JVM flags such as `-Xmx`, `-Xms`, `-XX:...`, or `-D...`. All flags go inside a single space-separated quoted string. This survives the layered quoting in Nextflow / Singularity / Docker pipelines without escape pain. The flag may be repeated to append.
 
 ```bash
-# Pull Relink Docker image
+# Pull the image
 docker pull ghcr.io/bigbio/relink:latest
 
-# Run xiSEARCH
-docker run -v /path/to/data:/data ghcr.io/bigbio/relink:latest \
-  java -jar /opt/xisearch/xiSEARCH.jar --help
+# Scout end-to-end (mount data + params under /data)
+docker run --rm -v /path/to/data:/data ghcr.io/bigbio/relink:latest \
+  scout -search -no_filter /data/search_params.json /data/filter_params.json
 
-# Run Scout
-docker run -v /path/to/data:/data ghcr.io/bigbio/relink:latest \
-  dotnet /opt/scout/Scout_Unix.dll --help
+# xiSEARCH with a 16 GB heap
+docker run --rm -v /path/to/data:/data ghcr.io/bigbio/relink:latest \
+  xisearch --java-options "-Xmx16g" \
+           --config=/data/config --peaks=/data/peaks.mgf \
+           --fasta=/data/db.fasta --output=/data/results.csv
+
+# xiFDR with custom heap and G1 GC
+docker run --rm -v /path/to/data:/data ghcr.io/bigbio/relink:latest \
+  xifdr --java-options "-Xmx8g -XX:+UseG1GC" --psmfdr=0.05 /data/results.csv
+
+# xi-mzidentml-converter
+docker run --rm -v /path/to/data:/data ghcr.io/bigbio/relink:latest \
+  process_dataset --help
 ```
+
+#### Nextflow
+
+`--java-options` keeps everything on one line — no extra escaping inside the script block:
+
+```groovy
+process XISEARCH {
+    container 'ghcr.io/bigbio/relink:1.1.0'
+    cpus 4
+    memory '16 GB'
+    script:
+    """
+    xisearch --java-options "-Xmx${task.memory.toGiga()}g" \\
+             --config=${config} --peaks=${peaks} --fasta=${fasta} \\
+             --output=xisearch_results.csv
+    """
+}
+```
+
+For Scout's CLI flags and params-file structure, see https://github.com/diogobor/Scout#26-automation.
 
 ### WiffConverter Container
 
@@ -149,7 +195,7 @@ Please note the following license restrictions:
 ### Relink Container
 
 - Base Image: `python:3.12-slim` (multi-stage build)
-- Version: 1.0.0
+- Version: 1.1.0
 - Architecture: `amd64`/`x86_64`
 - Includes: Java 21, .NET 9.0, Python 3.12, pyOpenMS, polars, pandas
 
@@ -205,7 +251,7 @@ docker pull ghcr.io/bigbio/openms-tools-thirdparty:latest
 cd diann-2.1.0/ && docker build -t diann:2.1.0 .
 
 # Build Relink
-cd relink-1.0.0/ && docker build -t relink:1.0.0 .
+cd relink-1.1.0/ && docker build -t relink:1.1.0 .
 ```
 
 ### Basic Usage
@@ -235,14 +281,24 @@ Please check [quantmsdiann documentation](https://github.com/bigbio/quantmsdiann
 
 #### Relink
 
-```bash
-# Run xiSEARCH
-docker run -v /path/to/data:/data ghcr.io/bigbio/relink:latest \
-  java -jar /opt/xisearch/xiSEARCH.jar [options]
+Tools are exposed directly on `PATH` (`scout`, `xisearch`, `xifdr`, `process_dataset`). For the Java-based tools, pass JVM flags via `--java-options "..."` (GATK convention):
 
-# Run Scout
+```bash
+# Scout
 docker run -v /path/to/data:/data ghcr.io/bigbio/relink:latest \
-  dotnet /opt/scout/Scout_Unix.dll [options]
+  scout -search -no_filter /data/search_params.json /data/filter_params.json
+
+# xiSEARCH with custom heap
+docker run -v /path/to/data:/data ghcr.io/bigbio/relink:latest \
+  xisearch --java-options "-Xmx16g" --config=/data/config [options]
+
+# xiFDR with custom heap
+docker run -v /path/to/data:/data ghcr.io/bigbio/relink:latest \
+  xifdr --java-options "-Xmx8g" [options]
+
+# xi-mzidentml-converter
+docker run -v /path/to/data:/data ghcr.io/bigbio/relink:latest \
+  process_dataset [options]
 ```
 
 #### OpenMS
