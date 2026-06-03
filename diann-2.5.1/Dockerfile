@@ -2,7 +2,7 @@ FROM ubuntu:22.04
 
 # Some metadata
 LABEL base_image="ubuntu:22.04"
-LABEL version="1"
+LABEL version="2"
 LABEL software="diann"
 LABEL software.version="2.5.1"
 LABEL about.summary="DIA-NN - a universal software for data-independent acquisition (DIA) proteomics data processing."
@@ -35,7 +35,7 @@ ENV LANG=en_US.UTF-8
 ENV LANGUAGE=en_US:en
 ENV LC_ALL=en_US.UTF-8
 
-# Download and install DIA-NN (Academia build; the public 2.5.1 asset lives under the 2.0 release tag)
+# Download and install DIA-NN
 RUN wget https://github.com/vdemichev/DiaNN/releases/download/2.0/DIA-NN-2.5.1-Academia-Linux.zip && \
     unzip DIA-NN-2.5.1-Academia-Linux.zip -d /usr/ && \
     rm DIA-NN-2.5.1-Academia-Linux.zip
