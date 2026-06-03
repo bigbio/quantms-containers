@@ -34,14 +34,17 @@ These containerized versions offer:
 | 2.2.0   | `diann-2.2.0/` | Native `.raw` on Linux (bundles .NET SDK 8)   | `ghcr.io/bigbio/diann:2.2.0` |
 | 2.3.2   | `diann-2.3.2/` | Native `.raw` on Linux (bundles .NET SDK 8)   | `ghcr.io/bigbio/diann:2.3.2` |
 | 2.5.0   | `diann-2.5.0/` | Native `.raw` on Linux (bundles .NET SDK 8)   | `ghcr.io/bigbio/diann:2.5.0` |
+| 2.5.1   | `diann-2.5.1/` | Native `.raw` on Linux (bundles .NET SDK 8)   | `ghcr.io/bigbio/diann:2.5.1` |
+| 2.5.1 Enterprise | `diann-enterprise-2.5.1/` | Knowledge Base (`--kb`), extra report QC metrics. **Per-user license; built locally only (no CI / registry push).** | `ghcr.io/bigbio/diann-enterprise:2.5.1` |
 
 > **Native Thermo `.raw` support (DIA-NN ≥ 2.1.0).** Starting with 2.1.0, DIA-NN
 > can read Thermo `.raw` files directly on Linux via bundled `RawWrapper.dll` /
 > `ThermoFisher.CommonCore.*` libraries (targeting `net8.0`). At startup
 > DIA-NN runs `dotnet --list-sdks` and, if no SDK is found, aborts with
 > `ERROR: cannot read .raw files, please download and install .NET Runtime
-> 8.0.14 or later`. The 2.1.0 / 2.2.0 / 2.3.2 / 2.5.0 images therefore install
-> `dotnet-sdk-8.0` (from Ubuntu 22.04 `jammy-updates`); no extra action is
+> 8.0.14 or later`. The 2.1.0 / 2.2.0 / 2.3.2 / 2.5.0 / 2.5.1 (incl. Enterprise)
+> images therefore install `dotnet-sdk-8.0` (from Ubuntu 22.04 `jammy-updates`);
+> no extra action is
 > needed. DIA-NN ≤ 2.0.2 does **not** ship the Thermo reader on Linux and
 > still requires external conversion (e.g. ThermoRawFileParser → `.mzML`).
 
@@ -53,6 +56,24 @@ docker build -t diann:2.1.0 .
 # Build Singularity container from Docker
 singularity build diann-2.1.0.sif docker-daemon://diann:2.1.0
 ```
+
+#### DIA-NN Enterprise (local-only)
+
+The Enterprise image (`diann-enterprise-2.5.1/`) is built from a **local**
+enterprise zip plus a **per-licensee** `diann-license-key.txt`. Neither artefact
+is committed (both are `.gitignored`) and the image is **never** pushed to a
+registry — it has no CI entry. The license key is a per-user secret: do not
+redistribute it or bake it into a shared image.
+
+```bash
+# ENTERPRISE_SRC must point at the directory holding the zip + license key
+ENTERPRISE_SRC=/path/to/enterprise ./build-diann-enterprise-singularity.sh
+```
+
+This produces `ghcr.io/bigbio/diann-enterprise:2.5.1` locally and the matching
+Singularity `.img`. In [quantmsdiann](https://github.com/bigbio/quantmsdiann),
+select it with `-profile diann_v2_5_1_enterprise`; the Knowledge Base is enabled
+via `--enable_kb` and boosts identifications (primarily on human data).
 
 ### Relink Container
 
@@ -178,6 +199,7 @@ The date tag (YYYY.MM.DD) is manually set for each release to ensure version sta
 Please note the following license restrictions:
 
 - **DIA-NN**: Custom academic license with restrictions. Please review the [DIA-NN license](diann-2.1.0/LICENSE.txt) before using. No commercial use or cloud deployment without collaboration agreement.
+- **DIA-NN Enterprise**: Separate per-user license issued by the DIA-NN authors. The key and the Enterprise binary are **not redistributable** — never commit them or publish the Enterprise image. Build locally only.
 - **Relink/xiSEARCH/xiFDR/Scout**: Please review the individual tool licenses
 - **OpenMS**: Available under the [BSD 3-Clause License](https://github.com/OpenMS/OpenMS/blob/develop/LICENSE)
 - **WiffConverter**: Proprietary SCIEX redistributable (via the public `sciex/wiffconverter` Docker Hub image). Users are responsible for complying with SCIEX's terms of use.
@@ -187,7 +209,7 @@ Please note the following license restrictions:
 ### DIA-NN Containers
 
 - Base Image: `ubuntu:22.04`
-- Available Versions: 1.8.1, 1.9.2, 2.0.2, 2.1.0, 2.2.0, 2.3.2, 2.5.0
+- Available Versions: 1.8.1, 1.9.2, 2.0.2, 2.1.0, 2.2.0, 2.3.2, 2.5.0, 2.5.1, plus 2.5.1 Enterprise (local-only)
 - Architecture: `amd64`/`x86_64`
 - .NET SDK 8 (`dotnet-sdk-8.0`) is installed in 2.1.0+ images to enable
   native Thermo `.raw` reading.
