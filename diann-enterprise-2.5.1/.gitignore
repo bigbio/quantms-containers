@@ -1,0 +1,4 @@
+# Do NOT commit the enterprise zip or the license key — they are
+# distributed under a commercial license and contain per-licensee data.
+DIA-NN-*.zip
+diann-license-key.txt
