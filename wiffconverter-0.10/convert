@@ -1,0 +1,131 @@
+#!/bin/bash
+# convert: SCIEX .wiff (+ companion .wiff.scan) → indexed mzML.
+#
+# Usage:
+#   convert --input <file.wiff> --output <file.mzML> [--mode centroid|profile] [--log <file>]
+#
+# The output is always an indexedmzML (SCIEX --index): downstream tools in the
+# quantms stack require <indexList> for random access.
+
+set -euo pipefail
+
+WIFF_BIN="/usr/local/bin/sciex/wiffconverter/OneOmics.WiffConverter.exe"
+
+INPUT=""
+OUTPUT=""
+MODE="centroid"
+LOG=""
+
+usage() {
+    cat <<EOF >&2
+Usage: $(basename "$0") --input <file.wiff> --output <file.mzML> [--mode centroid|profile] [--log <file>]
+
+Required:
+  --input   SCIEX .wiff file (companion .wiff.scan must sit next to it).
+  --output  Destination indexed mzML file.
+
+Optional:
+  --mode    Peak picking mode: 'centroid' (default) or 'profile'.
+  --log     Write the underlying converter log to this path. If omitted, the
+            log is written to <output>.log and only kept on failure.
+  -h, --help  Show this help and exit.
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --input)  INPUT="${2:-}"; shift 2 ;;
+        --output) OUTPUT="${2:-}"; shift 2 ;;
+        --mode)   MODE="${2:-}"; shift 2 ;;
+        --log)    LOG="${2:-}"; shift 2 ;;
+        -h|--help) usage; exit 0 ;;
+        *) echo "convert: unknown argument '$1'" >&2; usage; exit 64 ;;
+    esac
+done
+
+if [[ -z "$INPUT" || -z "$OUTPUT" ]]; then
+    echo "convert: --input and --output are required" >&2
+    usage
+    exit 64
+fi
+
+case "$MODE" in
+    centroid|profile) ;;
+    *)
+        echo "convert: invalid --mode '$MODE' (expected 'centroid' or 'profile')" >&2
+        exit 64
+        ;;
+esac
+
+if [[ ! -f "$INPUT" ]]; then
+    echo "convert: input '$INPUT' not found" >&2
+    exit 66
+fi
+if [[ ! -f "${INPUT}.scan" ]]; then
+    echo "convert: companion scan '${INPUT}.scan' not found next to input" >&2
+    exit 66
+fi
+
+KEEP_LOG=1
+if [[ -z "$LOG" ]]; then
+    LOG="${OUTPUT}.log"
+    KEEP_LOG=0  # only retain on failure
+fi
+
+# Capture mono's stdout/stderr to the log and tee it for live progress.
+# Use a real pipe (not >(tee ...)) so the script waits for tee to flush before
+# we read $LOG in fail() or remove it on success.
+status=0
+set +e
+/usr/bin/mono "$WIFF_BIN" \
+    WIFF "$INPUT" "-$MODE" \
+    MZML "$OUTPUT" \
+    --singleprecision --nocompression --index --overwrite \
+    2>&1 | tee "$LOG"
+status=${PIPESTATUS[0]}
+set -e
+
+fail() {
+    local msg="$1"
+    echo "" >&2
+    echo "================================================================" >&2
+    echo " convert FAILED: $msg" >&2
+    echo "  input : $INPUT" >&2
+    echo "  output: $OUTPUT" >&2
+    echo "  mode  : $MODE" >&2
+    echo "  log   : $LOG" >&2
+    echo "----------------------------------------------------------------" >&2
+    echo " Last 40 lines of converter log:" >&2
+    echo "----------------------------------------------------------------" >&2
+    tail -n 40 "$LOG" >&2 || true
+    echo "================================================================" >&2
+    exit 2
+}
+
+if [[ $status -ne 0 ]]; then
+    fail "OneOmics.WiffConverter exited with status $status"
+fi
+
+if [[ ! -s "$OUTPUT" ]]; then
+    fail "output '$OUTPUT' was not written or is empty"
+fi
+
+# OneOmics.WiffConverter does not always propagate failure via its exit code,
+# so verify the output is a well-formed indexedmzML.
+end=$(tail -n 1 "$OUTPUT")
+if [[ "$end" != "</indexedmzML>" ]]; then
+    fail "output is not a well-formed indexedmzML (last line: $end)"
+fi
+
+# Sanity-check the index actually exists in the file.
+if ! grep -q "<indexList " "$OUTPUT"; then
+    fail "output is missing <indexList> element"
+fi
+
+# Success — drop the log unless the user asked to keep it.
+if [[ "$KEEP_LOG" -eq 0 ]]; then
+    rm -f "$LOG"
+fi
+
+bytes=$(stat -c %s "$OUTPUT")
+echo "convert: success  output=$OUTPUT  size=${bytes}B  mode=$MODE  indexed=yes"

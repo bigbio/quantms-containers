@@ -3,7 +3,7 @@ FROM ubuntu:22.04
 LABEL base_image="ubuntu:22.04"
 LABEL version="1"
 LABEL software="diann"
-LABEL software.version="1.9.2"
+LABEL software.version="2.2.0"
 LABEL about.summary="DIA-NN - a universal software for data-independent acquisition (DIA) proteomics data processing."
 LABEL about.home="https://github.com/vdemichev/DiaNN"
 LABEL about.documentation="https://github.com/vdemichev/DiaNN"
@@ -13,11 +13,15 @@ LABEL maintainer="Yasset Perez-Riverol <ypriverol@gmail.com>"
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+# dotnet-sdk-8.0 is required for DIA-NN >= 2.1.0 to read Thermo .raw natively on Linux
+# (DIA-NN bundles Thermo DLLs targeting net8.0 and invokes `dotnet --list-sdks` at startup).
 RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
     unzip \
     libgomp1 \
-    locales && \
+    locales \
+    ca-certificates \
+    dotnet-sdk-8.0 && \
     rm -rf /var/lib/apt/lists/*
 
 RUN locale-gen en_US.UTF-8 && \
@@ -27,18 +31,18 @@ ENV LANG=en_US.UTF-8
 ENV LANGUAGE=en_US:en
 ENV LC_ALL=en_US.UTF-8
 
-# Download DIA-NN 1.9.2 (release tag: 1.9.2)
-# Zip contains diann-1.9.2/ at top level, so extract to /usr/
-RUN wget --no-check-certificate https://github.com/vdemichev/DiaNN/releases/download/1.9.2/diann-1.9.2.Linux.zip && \
-    unzip diann-1.9.2.Linux.zip -d /usr/ && \
-    rm diann-1.9.2.Linux.zip
+# Download DIA-NN 2.2.0 (release tag: 2.0)
+# Zip contains diann-2.2.0/ at top level, so extract to /usr/
+RUN wget https://github.com/vdemichev/DiaNN/releases/download/2.0/DIA-NN-2.2.0-Academia-Linux.zip && \
+    unzip DIA-NN-2.2.0-Academia-Linux.zip -d /usr/ && \
+    rm DIA-NN-2.2.0-Academia-Linux.zip
 
 RUN apt-get remove -y wget unzip && apt-get autoremove -y && apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-RUN chmod +x /usr/diann-1.9.2/diann-linux
-RUN ln -s /usr/diann-1.9.2/diann-linux /usr/diann-1.9.2/diann
-ENV PATH="$PATH:/usr/diann-1.9.2"
+RUN chmod +x /usr/diann-2.2.0/diann-linux
+RUN ln -s /usr/diann-2.2.0/diann-linux /usr/diann-2.2.0/diann
+ENV PATH="$PATH:/usr/diann-2.2.0"
 
 WORKDIR /data/
 

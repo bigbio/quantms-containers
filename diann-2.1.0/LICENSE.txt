@@ -40,10 +40,10 @@ within these Derived Materials that they were produced using the DIA-NN software
 based on the medium, means, and context in which you share the Derived Materials. For example, the required attribution can be expressed by including
 one of the statements "Processed using DIA-NN", "Generated using DIA-NN" or "Produced using DIA-NN" in the Derived Materials.
 
-7. All third-party software included in this DIA-NN software distribution retains its original license.
+7. All third-party software included in this DIA-NN software distribution retains its original license. 
 For the inclusion in this DIA-NN software distribution, the source code of MSToolkit and MiniDNN was modified.
-If not packaged within this distribution, please find the source code of the third-party software at https://github.com/vdemichev/DiaNN
-or at the respective website of the third-party software.
+If not packaged within this distribution, please find the source code and license notices of the third-party software at https://github.com/vdemichev/DiaNN
+or at the respective website of the third-party software. 
 
 8. Experimental functionality.
 Any of the DIA-NN commands/options that are not referenced at https://github.com/vdemichev/DiaNN/blob/master/README.md 
