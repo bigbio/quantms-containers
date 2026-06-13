@@ -1,6 +1,6 @@
 # QuantMS Docker Containers
 
-A repository of production-ready Docker and Singularity containers for proteomics tools used in quantms pipelines, including **DIA-NN**, **Relink**, and **OpenMS**.
+A repository of production-ready Docker and Singularity containers for proteomics tools used in quantms pipelines, including **DIA-NN**, **Relink**, **pyonsite**, and **OpenMS**.
 
 ## Overview
 
@@ -8,6 +8,7 @@ This repository provides containerized versions of popular proteomics tools:
 
 - [DIA-NN](https://github.com/vdemichev/DiaNN): A powerful software solution for analyzing DIA proteomics data
 - [Relink](https://github.com/bigbio/relink): Crosslinking mass spectrometry analysis pipeline (xiSEARCH, xiFDR, Scout)
+- [pyonsite](https://github.com/bigbio/onsite): Mass spectrometry post-translational modification localization tool (AScore, PhosphoRS, LucXor) — published on PyPI as `pyonsite`
 - [OpenMS](https://www.openms.de/): A versatile open-source software for mass spectrometry data analysis
 - [WiffConverter](https://hub.docker.com/r/sciex/wiffconverter): SCIEX `.wiff` / `.wiff.scan` to indexed `.mzML` conversion via the bundled `OneOmics.WiffConverter` .NET assembly
 
@@ -181,6 +182,43 @@ On failure the wrapper prints a banner with the input/output/mode and the last
 `.wiff.scan`, locked output, unsupported acquisition) are diagnosable from the
 console without re-running.
 
+### pyonsite Container
+
+The pyonsite container provides a complete mass spectrometry PTM localization environment for phosphorylation site assignment and scoring. The PyPI package name is `pyonsite`; the CLI tool is invoked as `onsite`.
+
+| Algorithm  | Description                                                  |
+| ---------- | ------------------------------------------------------------ |
+| AScore     | Probability-based approach using binomial statistics         |
+| PhosphoRS  | Site-specific probabilities with isomer analysis             |
+| LucXor     | Two-stage processing with false localization rate estimation |
+
+| Container Type | Tag   | URL                                           |
+| -------------- | ----- | --------------------------------------------- |
+| Docker         | 0.0.3 | `ghcr.io/bigbio/pyonsite:0.0.3`              |
+| Docker         | latest | `ghcr.io/bigbio/pyonsite:latest`             |
+| Singularity    | 0.0.3 | `oras://ghcr.io/bigbio/pyonsite-sif:0.0.3`   |
+
+```bash
+# Pull the image
+docker pull ghcr.io/bigbio/pyonsite:latest
+
+# AScore algorithm
+docker run --rm -v /path/to/data:/data ghcr.io/bigbio/pyonsite:latest \
+  onsite ascore -in /data/spectra.mzML -id /data/identifications.idparquet -out /data/results.idparquet
+
+# PhosphoRS algorithm
+docker run --rm -v /path/to/data:/data ghcr.io/bigbio/pyonsite:latest \
+  onsite phosphors -in /data/spectra.mzML -id /data/identifications.idparquet -out /data/results.idparquet
+
+# LucXor algorithm with FLR
+docker run --rm -v /path/to/data:/data ghcr.io/bigbio/pyonsite:latest \
+  onsite lucxor -in /data/spectra.mzML -id /data/identifications.idparquet -out /data/results.idparquet
+
+# Compute all three algorithms at once
+docker run --rm -v /path/to/data:/data ghcr.io/bigbio/pyonsite:latest \
+  onsite ascore --compute-all-scores -in /data/spectra.mzML -id /data/identifications.idparquet -out /data/results.idparquet
+```
+
 ### OpenMS Containers
 
 OpenMS containers are publicly available and can be pulled directly:
@@ -200,6 +238,7 @@ Please note the following license restrictions:
 
 - **DIA-NN**: Custom academic license with restrictions. Please review the [DIA-NN license](diann-2.1.0/LICENSE.txt) before using. No commercial use or cloud deployment without collaboration agreement.
 - **DIA-NN Enterprise**: Separate per-user license issued by the DIA-NN authors. The key and the Enterprise binary are **not redistributable** — never commit them or publish the Enterprise image. Build locally only.
+- **pyonsite**: Available under the [MIT License](https://github.com/bigbio/onsite/blob/main/LICENSE) (the underlying `onsite` software)
 - **Relink/xiSEARCH/xiFDR/Scout**: Please review the individual tool licenses
 - **OpenMS**: Available under the [BSD 3-Clause License](https://github.com/OpenMS/OpenMS/blob/develop/LICENSE)
 - **WiffConverter**: Proprietary SCIEX redistributable (via the public `sciex/wiffconverter` Docker Hub image). Users are responsible for complying with SCIEX's terms of use.
@@ -220,6 +259,13 @@ Please note the following license restrictions:
 - Version: 1.1.0
 - Architecture: `amd64`/`x86_64`
 - Includes: Java 21, .NET 9.0, Python 3.12, pyOpenMS, polars, pandas
+
+### pyonsite Container
+
+- Base Image: `python:3.12-slim`
+- Version: 0.0.3
+- Architecture: `amd64`/`x86_64`
+- Includes: Python 3.12, pyOpenMS, NumPy, SciPy, pyarrow, click
 
 ### OpenMS Containers
 
@@ -323,6 +369,29 @@ docker run -v /path/to/data:/data ghcr.io/bigbio/relink:latest \
   process_dataset [options]
 ```
 
+#### pyonsite
+
+The CLI tool inside the container is invoked as `onsite` (the PyPI package is `pyonsite`). It provides three PTM localization algorithms (AScore, PhosphoRS, LucXor) and accepts mzML spectra files with identifications in idparquet format:
+
+```bash
+# AScore algorithm
+docker run -v /path/to/data:/data ghcr.io/bigbio/pyonsite:latest \
+  onsite ascore -in /data/spectra.mzML -id /data/identifications.idparquet -out /data/results.idparquet
+
+# PhosphoRS algorithm
+docker run -v /path/to/data:/data ghcr.io/bigbio/pyonsite:latest \
+  onsite phosphors -in /data/spectra.mzML -id /data/identifications.idparquet -out /data/results.idparquet
+
+# LucXor algorithm with FLR
+docker run -v /path/to/data:/data ghcr.io/bigbio/pyonsite:latest \
+  onsite lucxor -in /data/spectra.mzML -id /data/identifications.idparquet -out /data/results.idparquet
+
+# Compute all three algorithms with decoy-based FLR
+docker run -v /path/to/data:/data ghcr.io/bigbio/pyonsite:latest \
+  onsite ascore --compute-all-scores --add-decoys \
+  -in /data/spectra.mzML -id /data/identifications.idparquet -out /data/results.idparquet
+```
+
 #### OpenMS
 
 ```bash
@@ -347,7 +416,8 @@ This repository includes a GitHub Actions workflow that builds and syncs all con
 1. Builds and pushes DIA-NN Docker and Singularity containers (all versions)
 2. Builds and pushes Relink Docker and Singularity containers
 3. Builds and pushes WiffConverter Docker and Singularity containers
-4. Syncs OpenMS containers from the official repository to BigBio
+4. Builds and pushes pyonsite Docker and Singularity containers
+5. Syncs OpenMS containers from the official repository to BigBio
 
 The workflow is triggered by:
 
