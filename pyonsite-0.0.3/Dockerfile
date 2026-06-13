@@ -16,9 +16,12 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
-# Install system dependencies required by pyopenms (libglib-2.0)
+# Install system dependencies:
+#   libglib2.0-0  — required by pyopenms
+#   procps        — required by Nextflow to collect task metrics (ps)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        libglib2.0-0 && \
+        libglib2.0-0 \
+        procps && \
     rm -rf /var/lib/apt/lists/*
 
 # Install pyonsite and its dependencies (pyopenms, numpy, scipy, pyarrow, click)
