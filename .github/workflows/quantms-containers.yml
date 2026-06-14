@@ -399,7 +399,7 @@ jobs:
   sync-openms:
     name: Sync OpenMS Containers
     needs: [build-diann, build-relink, build-wiffconverter, build-pyonsite]
-    if: always() && (github.event_name == 'release' || github.event_name == 'workflow_dispatch') && github.repository_owner == 'bigbio'
+    if: always() && needs.detect-changes.outputs.has_pyonsite == 'true' && github.repository_owner == 'bigbio'
     runs-on: ubuntu-latest
     permissions:
       contents: read
