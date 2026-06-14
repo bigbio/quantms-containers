@@ -405,7 +405,9 @@ jobs:
       contents: read
       packages: write
     env:
-      OPENMS_VERSION: "2025.04.14"
+      OPENMS_VERSION: "2026.06.06"
+      OPENMS_SHA256: "77f0f76a56e80f3f26b16b81d7dde7f9abb44885ea22b669716744926bba84a6"
+      OPENMS_SIF_SHA256: "9ce720059d988891b9a5d7416aba1bc6e0721468f6637af8be55a7b818e619f2"
 
     steps:
       - uses: docker/setup-buildx-action@v3
@@ -424,14 +426,14 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 30
           command: |
-            docker pull ghcr.io/openms/openms-tools-thirdparty:latest
-            docker tag ghcr.io/openms/openms-tools-thirdparty:latest ghcr.io/${{ github.repository_owner }}/openms-tools-thirdparty:${{ env.OPENMS_VERSION }}
+            docker pull ghcr.io/openms/openms-tools-thirdparty@sha256:${{ env.OPENMS_SHA256 }}
+            docker tag ghcr.io/openms/openms-tools-thirdparty@sha256:${{ env.OPENMS_SHA256 }} ghcr.io/${{ github.repository_owner }}/openms-tools-thirdparty:${{ env.OPENMS_VERSION }}
             docker push ghcr.io/${{ github.repository_owner }}/openms-tools-thirdparty:${{ env.OPENMS_VERSION }}
 
       - name: Tag as latest on release
         if: github.event_name == 'release'
         run: |
-          docker tag ghcr.io/openms/openms-tools-thirdparty:latest ghcr.io/${{ github.repository_owner }}/openms-tools-thirdparty:latest
+          docker tag ghcr.io/openms/openms-tools-thirdparty@sha256:${{ env.OPENMS_SHA256 }} ghcr.io/${{ github.repository_owner }}/openms-tools-thirdparty:latest
           docker push ghcr.io/${{ github.repository_owner }}/openms-tools-thirdparty:latest
 
       - name: Set up Singularity
@@ -443,7 +445,7 @@ jobs:
         run: |
           echo ${{ secrets.GITHUB_TOKEN }} | singularity remote login -u ${{ github.actor }} --password-stdin oras://ghcr.io
 
-          singularity pull --force openms.sif oras://ghcr.io/openms/openms-tools-thirdparty-sif:latest
+          singularity pull --force openms.sif oras://ghcr.io/openms/openms-tools-thirdparty-sif@sha256:${{ env.OPENMS_SIF_SHA256 }}
           singularity push openms.sif oras://ghcr.io/${{ github.repository_owner }}/openms-tools-thirdparty-sif:${{ env.OPENMS_VERSION }}
           if [[ "${{ github.event_name }}" == "release" ]]; then
             singularity push openms.sif oras://ghcr.io/${{ github.repository_owner }}/openms-tools-thirdparty-sif:latest
