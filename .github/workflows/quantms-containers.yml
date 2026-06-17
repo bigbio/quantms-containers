@@ -61,7 +61,7 @@ jobs:
             diann_1_8_1:  [ 'diann-1.8.1/**', '.github/workflows/**' ]
             relink_1_1_0: [ 'relink-1.1.0/**', '.github/workflows/**' ]
             wiffconverter_0_10: [ 'wiffconverter-0.10/**', '.github/workflows/**' ]
-            pyonsite_0_0_3: [ 'pyonsite-0.0.3/**', '.github/workflows/**' ]
+            pyonsite_0_0_4: [ 'pyonsite-0.0.4/**', '.github/workflows/**' ]
 
       - name: Build matrices
         id: set-matrix
@@ -77,7 +77,7 @@ jobs:
           CHG_181: ${{ steps.filter.outputs.diann_1_8_1 }}
           CHG_RLK: ${{ steps.filter.outputs.relink_1_1_0 }}
           CHG_WC010: ${{ steps.filter.outputs.wiffconverter_0_10 }}
-          CHG_OS003: ${{ steps.filter.outputs.pyonsite_0_0_3 }}
+          CHG_OS004: ${{ steps.filter.outputs.pyonsite_0_0_4 }}
         run: |
           DIANN_ALL='[
             {"context":"diann-2.5.1","tag":"ghcr.io/${{ github.repository_owner }}/diann:2.5.1","sif":"diann-sif:2.5.1","extra_tags":"ghcr.io/${{ github.repository_owner }}/diann:latest","chg":"CHG_251"},
@@ -96,7 +96,7 @@ jobs:
             {"context":"wiffconverter-0.10","tag":"ghcr.io/${{ github.repository_owner }}/wiffconverter:0.10","sif":"wiffconverter-sif:0.10","extra_tags":"ghcr.io/${{ github.repository_owner }}/wiffconverter:latest","chg":"CHG_WC010"}
           ]'
           PYONSITE_ALL='[
-            {"context":"pyonsite-0.0.3","tag":"ghcr.io/${{ github.repository_owner }}/pyonsite:0.0.3","sif":"pyonsite-sif:0.0.3","extra_tags":"ghcr.io/${{ github.repository_owner }}/pyonsite:latest","chg":"CHG_OS003"}
+            {"context":"pyonsite-0.0.4","tag":"ghcr.io/${{ github.repository_owner }}/pyonsite:0.0.4","sif":"pyonsite-sif:0.0.4","extra_tags":"ghcr.io/${{ github.repository_owner }}/pyonsite:latest","chg":"CHG_OS004"}
           ]'
 
           if [[ "$EVENT" == "release" || "$EVENT" == "workflow_dispatch" ]]; then
@@ -121,8 +121,8 @@ jobs:
               '[.[] | select(.chg == "CHG_RLK" and $crlk == "true") | del(.chg)]')
             WIFFCONV=$(echo "$WIFFCONV_ALL" | jq -c --arg cwc010 "${CHG_WC010:-false}" \
               '[.[] | select(.chg == "CHG_WC010" and $cwc010 == "true") | del(.chg)]')
-            PYONSITE=$(echo "$PYONSITE_ALL" | jq -c --arg cos003 "${CHG_OS003:-false}" \
-              '[.[] | select(.chg == "CHG_OS003" and $cos003 == "true") | del(.chg)]')
+            PYONSITE=$(echo "$PYONSITE_ALL" | jq -c --arg cos004 "${CHG_OS004:-false}" \
+              '[.[] | select(.chg == "CHG_OS004" and $cos004 == "true") | del(.chg)]')
           fi
 
           echo "diann_matrix={\"include\":$DIANN}" >> $GITHUB_OUTPUT
