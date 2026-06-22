@@ -4,7 +4,7 @@ FROM python:3.12-slim
 LABEL base_image="python:3.12-slim"
 LABEL version="1"
 LABEL software="pyonsite"
-LABEL software.version="0.0.4"
+LABEL software.version="0.0.5"
 LABEL about.summary="onsite: mass spectrometry post-translational modification localization tool (AScore, PhosphoRS, LucXor)"
 LABEL about.home="https://github.com/bigbio/onsite"
 LABEL about.documentation="https://github.com/bigbio/onsite"
@@ -25,7 +25,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     rm -rf /var/lib/apt/lists/*
 
 # Install pyonsite and its dependencies (pyopenms, numpy, scipy, pyarrow, click)
-RUN pip install --no-cache-dir pyonsite==0.0.4
+RUN pip install --no-cache-dir pyonsite==0.0.5
 
 # Verify installation
 RUN set -e; \
