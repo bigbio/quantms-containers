@@ -405,9 +405,9 @@ jobs:
       contents: read
       packages: write
     env:
-      OPENMS_VERSION: "2026.06.06"
-      OPENMS_SHA256: "77f0f76a56e80f3f26b16b81d7dde7f9abb44885ea22b669716744926bba84a6"
-      OPENMS_SIF_SHA256: "9ce720059d988891b9a5d7416aba1bc6e0721468f6637af8be55a7b818e619f2"
+      OPENMS_VERSION: "2026.07.02"
+      OPENMS_SHA256: "4ce710d52dbc981cd3146aa494b5d9e616bdb1daca81d4402c320f69e3d07832"
+      OPENMS_SIF_SHA256: "689ef3c87897a0474338282ffab978969d2fefeaafafde4005ae376ee3734273"
 
     steps:
       - uses: docker/setup-buildx-action@v3
