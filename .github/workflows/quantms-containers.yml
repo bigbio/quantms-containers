@@ -426,14 +426,14 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 30
           command: |
-            docker pull ghcr.io/openms/openms-tools-thirdparty:${{ env.OPENMS_SHA256 }}
-            docker tag ghcr.io/openms/openms-tools-thirdparty:${{ env.OPENMS_SHA256 }} ghcr.io/${{ github.repository_owner }}/openms-tools-thirdparty:${{ env.OPENMS_VERSION }}
+            docker pull ghcr.io/openms/openms-tools-thirdparty@sha256:${{ env.OPENMS_SHA256 }}
+            docker tag ghcr.io/openms/openms-tools-thirdparty@sha256:${{ env.OPENMS_SHA256 }} ghcr.io/${{ github.repository_owner }}/openms-tools-thirdparty:${{ env.OPENMS_VERSION }}
             docker push ghcr.io/${{ github.repository_owner }}/openms-tools-thirdparty:${{ env.OPENMS_VERSION }}
 
       - name: Tag as latest on release
         if: github.event_name == 'release'
         run: |
-          docker tag ghcr.io/openms/openms-tools-thirdparty:${{ env.OPENMS_VERSION }} ghcr.io/${{ github.repository_owner }}/openms-tools-thirdparty:latest
+          docker tag ghcr.io/openms/openms-tools-thirdparty@sha256:${{ env.OPENMS_VERSION }} ghcr.io/${{ github.repository_owner }}/openms-tools-thirdparty:latest
           docker push ghcr.io/${{ github.repository_owner }}/openms-tools-thirdparty:latest
 
       - name: Set up Singularity
@@ -445,7 +445,7 @@ jobs:
         run: |
           echo ${{ secrets.GITHUB_TOKEN }} | singularity remote login -u ${{ github.actor }} --password-stdin oras://ghcr.io
 
-          singularity pull --force openms.sif oras://ghcr.io/openms/openms-tools-thirdparty-sif:${{ env.OPENMS_SIF_SHA256 }}
+          singularity pull --force openms.sif oras://ghcr.io/openms/openms-tools-thirdparty-sif@sha256:${{ env.OPENMS_SIF_SHA256 }}
           singularity push openms.sif oras://ghcr.io/${{ github.repository_owner }}/openms-tools-thirdparty-sif:${{ env.OPENMS_VERSION }}
           if [[ "${{ github.event_name }}" == "release" ]]; then
             singularity push openms.sif oras://ghcr.io/${{ github.repository_owner }}/openms-tools-thirdparty-sif:latest
