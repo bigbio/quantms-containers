@@ -229,7 +229,8 @@ jobs:
   build-relink:
     name: "Relink ${{ matrix.context }}"
     needs: [detect-changes, build-diann]
-    if: always() && needs.detect-changes.outputs.has_relink == 'true' && github.repository_owner == 'bigbio'
+    # Disabled: the xiSEARCH 1.8.11 download URL is dead; re-enable once there is a new source.
+    if: false && always() && needs.detect-changes.outputs.has_relink == 'true' && github.repository_owner == 'bigbio'
     runs-on: ubuntu-latest
     permissions:
       contents: read
