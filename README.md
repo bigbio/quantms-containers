@@ -194,9 +194,9 @@ The pyonsite container provides a complete mass spectrometry PTM localization en
 
 | Container Type | Tag   | URL                                           |
 | -------------- | ----- | --------------------------------------------- |
-| Docker         | 0.0.3 | `ghcr.io/bigbio/pyonsite:0.0.3`              |
+| Docker         | 0.0.6 | `ghcr.io/bigbio/pyonsite:0.0.6`              |
 | Docker         | latest | `ghcr.io/bigbio/pyonsite:latest`             |
-| Singularity    | 0.0.3 | `oras://ghcr.io/bigbio/pyonsite-sif:0.0.3`   |
+| Singularity    | 0.0.6 | `oras://ghcr.io/bigbio/pyonsite-sif:0.0.6`   |
 
 ```bash
 # Pull the image
