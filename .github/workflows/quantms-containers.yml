@@ -410,9 +410,11 @@ jobs:
       contents: read
       packages: write
     env:
-      OPENMS_VERSION: "2026.10.04"
-      OPENMS_SHA256: "a7e917c3fd417b5d4a792c57185dc297e38caa454b12afe8b86010debf8f7c30"
-      OPENMS_SIF_SHA256: "eaac0e14ccabb040d07bf98ac3bf8b299f22e8d8b063e13af2ceb426fc8b06b5"
+      # Official OpenMS dev build develop-2026.10.28-f940a46542 (OpenMS develop f940a46542,
+      # containerdeploy run https://github.com/OpenMS/OpenMS/actions/runs/40679593583); Docker index and SIF of the same run.
+      OPENMS_VERSION: "2026.10.28"
+      OPENMS_SHA256: "c9b4b871f8c5edcc588ffa7759eb709eb827713e44c003066b6436bae5899637"
+      OPENMS_SIF_SHA256: "0cdb19e52d3ff534390ffdedcb19c242fe30ae3b3dcd0e47c1ca1788030a8cac"
 
     steps:
       - uses: docker/setup-buildx-action@v3
@@ -430,16 +432,15 @@ jobs:
           timeout_minutes: 10
           max_attempts: 3
           retry_wait_seconds: 30
+          # Copies the whole multi-arch index (amd64 + arm64) unchanged, so the bigbio tag has the same digest.
           command: |
-            docker pull ghcr.io/openms/openms-tools-thirdparty@sha256:${{ env.OPENMS_SHA256 }}
-            docker tag ghcr.io/openms/openms-tools-thirdparty@sha256:${{ env.OPENMS_SHA256 }} ghcr.io/${{ github.repository_owner }}/openms-tools-thirdparty:${{ env.OPENMS_VERSION }}
-            docker push ghcr.io/${{ github.repository_owner }}/openms-tools-thirdparty:${{ env.OPENMS_VERSION }}
+            docker buildx imagetools create -t ghcr.io/${{ github.repository_owner }}/openms-tools-thirdparty:${{ env.OPENMS_VERSION }} ghcr.io/openms/openms-tools-thirdparty@sha256:${{ env.OPENMS_SHA256 }}
+            docker buildx imagetools inspect ghcr.io/${{ github.repository_owner }}/openms-tools-thirdparty:${{ env.OPENMS_VERSION }} | grep -q "sha256:${{ env.OPENMS_SHA256 }}"
 
       - name: Tag as latest on release
         if: github.event_name == 'release'
         run: |
-          docker tag ghcr.io/openms/openms-tools-thirdparty@sha256:${{ env.OPENMS_VERSION }} ghcr.io/${{ github.repository_owner }}/openms-tools-thirdparty:latest
-          docker push ghcr.io/${{ github.repository_owner }}/openms-tools-thirdparty:latest
+          docker buildx imagetools create -t ghcr.io/${{ github.repository_owner }}/openms-tools-thirdparty:latest ghcr.io/openms/openms-tools-thirdparty@sha256:${{ env.OPENMS_SHA256 }}
 
       - name: Set up Singularity
         uses: eWaterCycle/setup-singularity@v7
